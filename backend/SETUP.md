@@ -35,10 +35,11 @@ Required API keys:
   - Create an account → Dashboard → Settings → Generate API key
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - For LLM (for other agents)
 
-4. **Test StayAgent**
+4. **Test the API**
 
 ```bash
-python test_stay_agent.py
+python main.py
+# Then test with: curl http://localhost:8000/api/trips/test
 ```
 
 5. **Run the API server**
@@ -77,20 +78,25 @@ curl -X POST "http://localhost:8000/api/trips/plan" \
 ```
 backend/
 ├── agents/           # Agent implementations
-│   ├── stay_agent.py      # StayAgent (using Dedalus Labs)
-│   ├── travel_agent.py    # TravelAgent (placeholder)
-│   ├── experience_agent.py # ExperienceAgent (placeholder)
-│   ├── budget_agent.py    # BudgetAgent (placeholder)
-│   └── planner_agent.py   # PlannerAgent (placeholder)
+│   ├── stay_agent.py           # StayAgent (using Dedalus Labs)
+│   ├── travel_agent.py         # TravelAgent (multi-agent orchestration)
+│   ├── flight_search_agent.py  # Flight search agent
+│   ├── train_search_agent.py   # Train search agent
+│   ├── bus_search_agent.py     # Bus search agent
+│   ├── car_search_agent.py     # Car/cab search agent
+│   ├── route_analyzer_agent.py # Route analysis agent
+│   ├── gemini_search_agent.py  # Gemini web search agent
+│   ├── experience_agent.py      # ExperienceAgent
+│   ├── budget_agent.py         # BudgetAgent
+│   └── planner_agent.py        # PlannerAgent
 ├── api/              # API routes
 │   └── routes.py
 ├── services/         # Core services
 │   └── orchestrator.py   # Main orchestration service
-├── shared/           # Shared types (symlink or copy)
+├── shared/           # Shared types
 │   └── types.py
 ├── main.py           # FastAPI application entry point
-├── requirements.txt  # Python dependencies
-└── test_stay_agent.py # Test script for StayAgent
+└── requirements.txt  # Python dependencies
 ```
 
 ## Troubleshooting

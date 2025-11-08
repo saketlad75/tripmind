@@ -58,7 +58,8 @@ Set in `.env`:
 2. **Run the test script**:
    ```bash
    cd backend
-   python test_stay_agent.py
+   # Test via API endpoint
+   curl -X POST http://localhost:8000/api/trips/plan -H "Content-Type: application/json" -d '{"prompt": "..."}'
    ```
 
 ### Error Handling
