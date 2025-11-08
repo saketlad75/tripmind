@@ -21,6 +21,7 @@ class PlannerAgent:
         self,
         request: TripRequest,
         stay_results: Optional[Dict[str, Any]] = None,
+        restaurant_results: Optional[Dict[str, Any]] = None,
         travel_results: Optional[Dict[str, Any]] = None,
         experience_results: Optional[Dict[str, Any]] = None,
         budget_results: Optional[Dict[str, Any]] = None
@@ -28,9 +29,21 @@ class PlannerAgent:
         """Process planning request"""
         # Return a placeholder plan
         from shared.types import BudgetBreakdown
+        
+        # Get selected accommodation
+        selected_accommodation = None
+        if stay_results and request.selected_accommodation_id:
+            accommodations = stay_results.get("accommodations", [])
+            for acc in accommodations:
+                if acc.id == request.selected_accommodation_id:
+                    selected_accommodation = acc
+                    break
+        
         return TripPlan(
             request=request,
             accommodations=stay_results.get("accommodations", []) if stay_results else [],
+            selected_accommodation=selected_accommodation,
+            restaurants=restaurant_results.get("restaurants", []) if restaurant_results else [],
             transportation=[],
             experiences=[],
             itinerary=[],

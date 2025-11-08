@@ -6,7 +6,7 @@ Filters by amenities, reviews, photos
 
 from typing import Dict, Any, Optional, List
 from dedalus_labs import AsyncDedalus, DedalusRunner
-from shared.types import TripRequest, Accommodation
+from shared.types import TripRequest, Accommodation, UserProfile
 import json
 import os
 from dotenv import load_dotenv
@@ -46,7 +46,7 @@ class StayAgent:
         self.client = AsyncDedalus()
         self.runner = DedalusRunner(self.client)
     
-    async def process(self, request: TripRequest) -> Dict[str, Any]:
+    async def process(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> Dict[str, Any]:
         """
         Process trip request to find accommodations
         
@@ -60,7 +60,7 @@ class StayAgent:
             await self.initialize()
         
         # Build the prompt for accommodation search
-        prompt = self._build_search_prompt(request)
+        prompt = self._build_search_prompt(request, user_profile)
         
         # Run Dedalus with MCP servers
         try:
@@ -78,50 +78,78 @@ class StayAgent:
         # Parse and structure the results
         accommodations = self._parse_results(result.final_output, request)
         
+        # Validate minimum requirements
+        min_required = 3
+        if len(accommodations) < min_required:
+            print(f"Warning: Only found {len(accommodations)} accommodations, minimum {min_required} required")
+        
         return {
             "accommodations": accommodations,
             "raw_output": result.final_output,
-            "count": len(accommodations)
+            "count": len(accommodations),
+            "meets_minimum": len(accommodations) >= min_required
         }
     
-    def _build_search_prompt(self, request: TripRequest) -> str:
+    def _build_search_prompt(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> str:
         """Build a detailed prompt for accommodation search"""
         prompt_parts = [
-            f"I'm planning a trip and need help finding accommodations.",
-            f"\nTrip Details:",
-            f"- Description: {request.prompt}",
+            f"I need help finding accommodations for a trip.",
+            f"\nUser's Trip Description:",
+            f'"{request.prompt}"',
+            f"\nIMPORTANT: Extract the destination/location from the trip description above.",
         ]
         
-        if request.destination:
-            prompt_parts.append(f"- Destination: {request.destination}")
-        
+        # Add duration if available
         if request.start_date and request.end_date:
-            prompt_parts.append(
-                f"- Dates: {request.start_date} to {request.end_date}"
-            )
+            prompt_parts.append(f"\nTrip Dates: {request.start_date} to {request.end_date}")
         elif request.duration_days:
-            prompt_parts.append(f"- Duration: {request.duration_days} days")
+            prompt_parts.append(f"\nTrip Duration: {request.duration_days} days")
         
-        if request.budget:
-            prompt_parts.append(f"- Budget: ${request.budget:.2f} total")
+        prompt_parts.append(f"Number of travelers: {request.travelers}")
         
-        prompt_parts.append(f"- Number of travelers: {request.travelers}")
+        # Budget from user profile or request
+        budget = request.budget
+        if not budget and user_profile and user_profile.budget:
+            budget = user_profile.budget
         
-        if request.preferences:
-            prompt_parts.append(f"- Preferences: {json.dumps(request.preferences, indent=2)}")
+        if budget:
+            prompt_parts.append(f"Total Budget: ${budget:.2f} USD")
+            # Calculate approximate budget per night
+            duration = request.duration_days or (
+                (request.end_date - request.start_date).days 
+                if request.start_date and request.end_date else 1
+            )
+            budget_per_night = budget / duration if duration > 0 else budget
+            prompt_parts.append(f"Approximate budget per night: ${budget_per_night:.2f}")
+        
+        # Add user profile preferences if available
+        if user_profile:
+            if user_profile.disability_needs:
+                prompt_parts.append(f"\nAccessibility Requirements: {', '.join(user_profile.disability_needs)}")
         
         prompt_parts.extend([
-            "\nPlease help me find:",
-            "1. Hotel/Airbnb/Accommodation options in the area",
-            "2. Prices per night and total cost",
-            "3. Amenities (especially Wi-Fi, parking, etc.)",
-            "4. Reviews and ratings",
-            "5. Photos and property details",
-            "6. Booking links or URLs",
-            "7. Location details (address, coordinates if possible)",
-            "\nFocus on properties that match the trip description and preferences.",
-            "Provide specific recommendations with details.",
-            "\nIMPORTANT: Please format your response as JSON with the following structure:",
+            "\nPlease help me find accommodations by:",
+            "1. EXTRACTING the destination/location from the trip description",
+            "2. Finding MINIMUM 3 different hotel/accommodation options in that location",
+            "3. Ensuring prices fit within the budget range",
+            "4. Including properties that match any accessibility requirements",
+            "",
+            "For each accommodation, provide:",
+            "- Property name and description",
+            "- Exact address and location coordinates (lat, lng)",
+            "- Price per night and total cost for the trip duration",
+            "- Amenities (especially Wi-Fi, parking, etc.)",
+            "- Reviews and ratings",
+            "- Photos and property details",
+            "- Booking links or URLs",
+            "",
+            "IMPORTANT REQUIREMENTS:",
+            "- Find AT LEAST 3 different accommodation options",
+            "- All accommodations must be in the location extracted from the trip description",
+            "- Prices should be within the specified budget range",
+            "- Provide real, bookable properties with actual prices",
+            "",
+            "Please format your response as JSON with the following structure:",
             "```json",
             "{",
             '  "accommodations": [',
@@ -129,7 +157,7 @@ class StayAgent:
             '      "id": "unique_id",',
             '      "title": "Property name",',
             '      "description": "Detailed description",',
-            '      "address": "Full address",',
+            '      "address": "Full address with city and country",',
             '      "location": {"lat": 0.0, "lng": 0.0},',
             '      "price_per_night": 0.0,',
             '      "amenities": ["Wi-Fi", "Parking", ...],',
@@ -139,6 +167,7 @@ class StayAgent:
             '      "booking_url": "https://...",',
             '      "source": "airbnb"',
             "    }",
+            "    // ... at least 2 more accommodations",
             "  ]",
             "}",
             "```"

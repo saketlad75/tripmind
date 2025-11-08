@@ -11,11 +11,12 @@ import os
 from dotenv import load_dotenv
 
 from agents.stay_agent import StayAgent
+from agents.restaurant_agent import RestaurantAgent
 from agents.travel_agent import TravelAgent
 from agents.experience_agent import ExperienceAgent
 from agents.budget_agent import BudgetAgent
 from agents.planner_agent import PlannerAgent
-from shared.types import TripRequest, TripPlan
+from shared.types import TripRequest, TripPlan, UserProfile
 
 load_dotenv()
 
@@ -25,14 +26,17 @@ class TripOrchestrator:
     
     def __init__(self):
         self.llm = self._initialize_llm()
-        # StayAgent uses Dedalus Labs, doesn't need LLM
+        # Agents using Dedalus Labs, don't need LLM
         self.stay_agent = StayAgent()
+        self.restaurant_agent = RestaurantAgent()
         # Other agents can use LLM if needed
         self.travel_agent = TravelAgent(self.llm)
         self.experience_agent = ExperienceAgent(self.llm)
         self.budget_agent = BudgetAgent(self.llm)
         self.planner_agent = PlannerAgent(self.llm)
         self.workflow = self._build_workflow()
+        # User profile storage (in production, use a database)
+        self._user_profiles: Dict[str, UserProfile] = {}
     
     def _initialize_llm(self):
         """Initialize LLM based on environment configuration"""
@@ -54,7 +58,9 @@ class TripOrchestrator:
         
         class AgentStateDict(TypedDict):
             request: TripRequest
+            user_profile: Optional[UserProfile]
             stay_results: Optional[Dict[str, Any]]
+            restaurant_results: Optional[Dict[str, Any]]
             travel_results: Optional[Dict[str, Any]]
             experience_results: Optional[Dict[str, Any]]
             budget_results: Optional[Dict[str, Any]]
@@ -64,14 +70,16 @@ class TripOrchestrator:
         
         # Add nodes for each agent
         workflow.add_node("stay_agent", self._stay_agent_node)
+        workflow.add_node("restaurant_agent", self._restaurant_agent_node)
         workflow.add_node("travel_agent", self._travel_agent_node)
         workflow.add_node("experience_agent", self._experience_agent_node)
         workflow.add_node("budget_agent", self._budget_agent_node)
         workflow.add_node("planner_agent", self._planner_agent_node)
         
-        # Define the flow
+        # Define the flow: Stay -> Restaurant -> Travel -> Experience -> Budget -> Planner
         workflow.set_entry_point("stay_agent")
-        workflow.add_edge("stay_agent", "travel_agent")
+        workflow.add_edge("stay_agent", "restaurant_agent")
+        workflow.add_edge("restaurant_agent", "travel_agent")
         workflow.add_edge("travel_agent", "experience_agent")
         workflow.add_edge("experience_agent", "budget_agent")
         workflow.add_edge("budget_agent", "planner_agent")
@@ -82,8 +90,17 @@ class TripOrchestrator:
     async def _stay_agent_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Stay agent processing node"""
         request = state["request"]
-        result = await self.stay_agent.process(request)
+        user_profile = state.get("user_profile")
+        result = await self.stay_agent.process(request, user_profile)
         return {"stay_results": result}
+    
+    async def _restaurant_agent_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Restaurant agent processing node"""
+        request = state["request"]
+        stay_results = state.get("stay_results")
+        user_profile = state.get("user_profile")
+        result = await self.restaurant_agent.process(request, stay_results, user_profile)
+        return {"restaurant_results": result}
     
     async def _travel_agent_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Travel agent processing node"""
@@ -114,20 +131,33 @@ class TripOrchestrator:
         """Planner agent processing node"""
         request = state["request"]
         stay_results = state.get("stay_results")
+        restaurant_results = state.get("restaurant_results")
         travel_results = state.get("travel_results")
         experience_results = state.get("experience_results")
         budget_results = state.get("budget_results")
         result = await self.planner_agent.process(
-            request, stay_results, travel_results, experience_results, budget_results
+            request, stay_results, restaurant_results, travel_results, experience_results, budget_results
         )
         return {"final_plan": result}
     
-    async def plan_trip(self, request: TripRequest) -> TripPlan:
-        """Main method to plan a trip"""
+    async def plan_trip(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> TripPlan:
+        """
+        Main method to plan a trip
+        
+        Args:
+            request: TripRequest with user's trip description
+            user_profile: Optional user profile (will be fetched if not provided)
+        """
+        # Fetch user profile if not provided
+        if not user_profile:
+            user_profile = self._user_profiles.get(request.user_id)
+        
         # Convert Pydantic model to dict for LangGraph
         initial_state = {
             "request": request,
+            "user_profile": user_profile,
             "stay_results": None,
+            "restaurant_results": None,
             "travel_results": None,
             "experience_results": None,
             "budget_results": None,
@@ -146,9 +176,18 @@ class TripOrchestrator:
         else:
             raise ValueError("Invalid final_plan format")
     
+    def register_user_profile(self, profile: UserProfile):
+        """Register or update a user profile"""
+        self._user_profiles[profile.user_id] = profile
+    
+    def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+        """Get user profile by ID"""
+        return self._user_profiles.get(user_id)
+    
     async def initialize(self):
         """Initialize all agents"""
         await self.stay_agent.initialize()
+        await self.restaurant_agent.initialize()
         await self.travel_agent.initialize()
         await self.experience_agent.initialize()
         await self.budget_agent.initialize()
