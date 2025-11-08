@@ -1,15 +1,23 @@
 """
-StayAgent - Finds accommodations using Dedalus Labs
-Searches for properties via Airbnb API or embeddings search
+StayAgent - Finds accommodations using Google Gemini API
+Searches for properties via web search and AI reasoning
 Filters by amenities, reviews, photos
 """
 
 from typing import Dict, Any, Optional, List
-from dedalus_labs import AsyncDedalus, DedalusRunner
+import google.generativeai as genai
 from shared.types import TripRequest, Accommodation, UserProfile
 import json
 import os
+import asyncio
 from dotenv import load_dotenv
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    retry_if_exception_message
+)
 
 load_dotenv()
 
@@ -22,29 +30,42 @@ class StayAgent:
         Initialize StayAgent
         
         Args:
-            llm: Not used with Dedalus Labs (kept for compatibility with orchestrator)
+            llm: Not used (kept for compatibility with orchestrator)
         """
-        self.client = None
-        self.runner = None
-        self.mcp_servers = [
-            "joerup/exa-mcp",           # For semantic travel research
-            "windsor/brave-search-mcp",  # For travel information search
-        ]
-        # Use GPT-5 or GPT-4.1 for better tool calling (as per Dedalus docs)
-        self.model = os.getenv("DEDALUS_MODEL", "openai/gpt-4.1")
+        self.model = None
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     async def initialize(self):
-        """Initialize Dedalus client and runner"""
+        """Initialize Gemini client"""
         # Check for API key
-        api_key = os.getenv("DEDALUS_API_KEY")
-        if not api_key or api_key == "your_dedalus_api_key_here":
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key or api_key == "your_google_api_key_here":
             raise ValueError(
-                "DEDALUS_API_KEY not set. Please set it in your .env file. "
-                "Get your API key at https://dedaluslabs.ai"
+                "GOOGLE_API_KEY not set. Please set it in your .env file. "
+                "Get your API key at https://makersuite.google.com/app/apikey"
             )
         
-        self.client = AsyncDedalus()
-        self.runner = DedalusRunner(self.client)
+        genai.configure(api_key=api_key)
+        # Use the specified model name (will be validated by the API)
+        self.model = genai.GenerativeModel(self.model_name)
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_message(match=r".*(rate limit|429|quota|too many requests|resource exhausted).*"),
+        reraise=True
+    )
+    async def _run_with_retry(self, prompt: str):
+        """Run Gemini with retry logic for rate limits"""
+        response = await asyncio.to_thread(
+            self.model.generate_content,
+            prompt
+        )
+        # Create a simple result object similar to Dedalus format
+        class Result:
+            def __init__(self, text):
+                self.final_output = text
+        return Result(response.text)
     
     async def process(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> Dict[str, Any]:
         """
@@ -56,38 +77,47 @@ class StayAgent:
         Returns:
             Dictionary with accommodations and metadata
         """
-        if not self.runner:
+        if not self.model:
             await self.initialize()
         
         # Build the prompt for accommodation search
         prompt = self._build_search_prompt(request, user_profile)
         
-        # Run Dedalus with MCP servers
+        # Run Gemini API (with rate limit handling)
         try:
-            result = await self.runner.run(
-                input=prompt,
-                model=self.model,
-                mcp_servers=self.mcp_servers
-            )
+            result = await self._run_with_retry(prompt)
         except Exception as e:
+            error_msg = str(e).lower()
+            if "rate limit" in error_msg or "429" in error_msg or "quota" in error_msg or "resource exhausted" in error_msg:
+                raise RuntimeError(
+                    "API rate limit exceeded. Please wait a few minutes and try again. "
+                    "The Google Gemini API has usage limits. Consider upgrading your plan or waiting before retrying."
+                ) from e
             raise RuntimeError(
-                f"Error calling Dedalus Labs: {str(e)}. "
-                "Make sure DEDALUS_API_KEY is set correctly and you have access to the MCP servers."
+                f"Error calling Google Gemini API: {str(e)}. "
+                "Make sure GOOGLE_API_KEY is set correctly."
             ) from e
         
         # Parse and structure the results
         accommodations = self._parse_results(result.final_output, request)
         
-        # Validate minimum requirements
-        min_required = 3
-        if len(accommodations) < min_required:
-            print(f"Warning: Only found {len(accommodations)} accommodations, minimum {min_required} required")
+        # Handle cases where fewer accommodations are found
+        count = len(accommodations)
+        min_preferred = 3
+        
+        if count == 0:
+            print("Warning: No accommodations found in the specified area")
+        elif count == 1:
+            print(f"Note: Only 1 accommodation found in this area. Suggesting this option.")
+        elif count < min_preferred:
+            print(f"Note: Found {count} accommodations (preferred: {min_preferred}). All available options are shown.")
         
         return {
             "accommodations": accommodations,
             "raw_output": result.final_output,
-            "count": len(accommodations),
-            "meets_minimum": len(accommodations) >= min_required
+            "count": count,
+            "meets_minimum": count >= min_preferred,
+            "message": self._get_accommodation_message(count)
         }
     
     def _build_search_prompt(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> str:
@@ -130,7 +160,7 @@ class StayAgent:
         prompt_parts.extend([
             "\nPlease help me find accommodations by:",
             "1. EXTRACTING the destination/location from the trip description",
-            "2. Finding MINIMUM 3 different hotel/accommodation options in that location",
+            "2. Finding available hotel/accommodation options in that location (preferably 3+, but include all available options)",
             "3. Ensuring prices fit within the budget range",
             "4. Including properties that match any accessibility requirements",
             "",
@@ -144,10 +174,12 @@ class StayAgent:
             "- Booking links or URLs",
             "",
             "IMPORTANT REQUIREMENTS:",
-            "- Find AT LEAST 3 different accommodation options",
+            "- Find ALL available accommodation options in the location (aim for 3+, but include all you find)",
+            "- If only 1-2 options are available in the area, include those",
             "- All accommodations must be in the location extracted from the trip description",
             "- Prices should be within the specified budget range",
             "- Provide real, bookable properties with actual prices",
+            "- If very few options exist, mention this in your response",
             "",
             "Please format your response as JSON with the following structure:",
             "```json",
@@ -167,13 +199,26 @@ class StayAgent:
             '      "booking_url": "https://...",',
             '      "source": "airbnb"',
             "    }",
-            "    // ... at least 2 more accommodations",
+            "    // ... include all available accommodations (preferably 3+, but include all found)",
             "  ]",
             "}",
             "```"
         ])
         
         return "\n".join(prompt_parts)
+    
+    def _get_accommodation_message(self, count: int) -> str:
+        """Get appropriate message based on accommodation count"""
+        if count == 0:
+            return "No accommodations found in the specified area. Please try a different location or adjust your search criteria."
+        elif count == 1:
+            return "Only 1 accommodation found in this area. This is the available option."
+        elif count == 2:
+            return f"Found {count} accommodations in this area. Both options are shown."
+        elif count >= 3:
+            return f"Found {count} accommodations in this area. Here are the available options."
+        else:
+            return f"Found {count} accommodation(s) in this area."
     
     def _parse_results(self, output: str, request: TripRequest) -> List[Accommodation]:
         """

@@ -1,11 +1,11 @@
 """
-Test script for StayAgent using Dedalus Labs
+Test script for StayAgent using Google Gemini API
 Run this to test the StayAgent independently
 """
 
 import asyncio
 from agents.stay_agent import StayAgent
-from shared.types import TripRequest
+from shared.types import TripRequest, UserProfile
 from datetime import date, timedelta
 from dotenv import load_dotenv
 
@@ -15,20 +15,26 @@ load_dotenv()
 async def test_stay_agent():
     """Test the StayAgent with a sample request"""
     
+    # Create a test user profile
+    user_profile = UserProfile(
+        user_id="test_user_001",
+        name="Test User",
+        email="test@example.com",
+        budget=2000.0,
+        dietary_preferences=[],
+        disability_needs=[]
+    )
+    
     # Create a test trip request
     request = TripRequest(
         prompt="I want a 5-day quiet nature escape with good Wi-Fi, hiking trails, and local food near Zurich.",
+        user_id="test_user_001",
         destination="Zurich, Switzerland",
         start_date=date.today() + timedelta(days=30),
         end_date=date.today() + timedelta(days=35),
         duration_days=5,
         budget=2000.0,
-        travelers=2,
-        preferences={
-            "amenities": ["Wi-Fi", "parking"],
-            "type": "nature escape",
-            "activities": ["hiking", "local food"]
-        }
+        travelers=2
     )
     
     # Initialize and run StayAgent
@@ -36,7 +42,7 @@ async def test_stay_agent():
     await agent.initialize()
     
     print("=" * 80)
-    print("Testing StayAgent with Dedalus Labs")
+    print("Testing StayAgent with Google Gemini API")
     print("=" * 80)
     print(f"\nRequest: {request.prompt}")
     print(f"Destination: {request.destination}")
@@ -44,7 +50,7 @@ async def test_stay_agent():
     print("\nProcessing...\n")
     
     try:
-        results = await agent.process(request)
+        results = await agent.process(request, user_profile)
         
         print("=" * 80)
         print("Results:")

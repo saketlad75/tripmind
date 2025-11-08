@@ -29,11 +29,11 @@ class TripOrchestrator:
         # Agents using Dedalus Labs, don't need LLM
         self.stay_agent = StayAgent()
         self.restaurant_agent = RestaurantAgent()
+        self.planner_agent = PlannerAgent()  # Uses Dedalus Labs
         # Other agents can use LLM if needed
         self.travel_agent = TravelAgent(self.llm)
         self.experience_agent = ExperienceAgent(self.llm)
         self.budget_agent = BudgetAgent(self.llm)
-        self.planner_agent = PlannerAgent(self.llm)
         self.workflow = self._build_workflow()
         # User profile storage (in production, use a database)
         # Profiles are registered via API from UI registration
@@ -131,13 +131,15 @@ class TripOrchestrator:
     async def _planner_agent_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Planner agent processing node"""
         request = state["request"]
+        user_profile = state.get("user_profile")
         stay_results = state.get("stay_results")
         restaurant_results = state.get("restaurant_results")
         travel_results = state.get("travel_results")
         experience_results = state.get("experience_results")
         budget_results = state.get("budget_results")
         result = await self.planner_agent.process(
-            request, stay_results, restaurant_results, travel_results, experience_results, budget_results
+            request, stay_results, restaurant_results, travel_results, 
+            experience_results, budget_results, user_profile
         )
         return {"final_plan": result}
     
@@ -189,10 +191,10 @@ class TripOrchestrator:
         """Initialize all agents"""
         await self.stay_agent.initialize()
         await self.restaurant_agent.initialize()
+        await self.planner_agent.initialize()
         await self.travel_agent.initialize()
         await self.experience_agent.initialize()
         await self.budget_agent.initialize()
-        await self.planner_agent.initialize()
     
     async def cleanup(self):
         """Cleanup resources"""

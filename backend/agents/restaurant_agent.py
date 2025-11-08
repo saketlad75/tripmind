@@ -1,15 +1,22 @@
 """
-RestaurantAgent - Finds restaurants using Dedalus Labs
+RestaurantAgent - Finds restaurants using Google Gemini API
 Suggests restaurants near the selected accommodation
 Considers user's budget and dietary preferences
 """
 
 from typing import Dict, Any, Optional, List
-from dedalus_labs import AsyncDedalus, DedalusRunner
+import google.generativeai as genai
 from shared.types import TripRequest, Restaurant, Accommodation, UserProfile
 import json
 import os
+import asyncio
 from dotenv import load_dotenv
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_message
+)
 
 load_dotenv()
 
@@ -22,29 +29,41 @@ class RestaurantAgent:
         Initialize RestaurantAgent
         
         Args:
-            llm: Not used with Dedalus Labs (kept for compatibility with orchestrator)
+            llm: Not used (kept for compatibility with orchestrator)
         """
-        self.client = None
-        self.runner = None
-        self.mcp_servers = [
-            "joerup/exa-mcp",           # For semantic restaurant research
-            "windsor/brave-search-mcp",  # For restaurant information search
-        ]
-        # Use GPT-5 or GPT-4.1 for better tool calling (as per Dedalus docs)
-        self.model = os.getenv("DEDALUS_MODEL", "openai/gpt-4.1")
+        self.model = None
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     async def initialize(self):
-        """Initialize Dedalus client and runner"""
+        """Initialize Gemini client"""
         # Check for API key
-        api_key = os.getenv("DEDALUS_API_KEY")
-        if not api_key or api_key == "your_dedalus_api_key_here":
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key or api_key == "your_google_api_key_here":
             raise ValueError(
-                "DEDALUS_API_KEY not set. Please set it in your .env file. "
-                "Get your API key at https://dedaluslabs.ai"
+                "GOOGLE_API_KEY not set. Please set it in your .env file. "
+                "Get your API key at https://makersuite.google.com/app/apikey"
             )
         
-        self.client = AsyncDedalus()
-        self.runner = DedalusRunner(self.client)
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(self.model_name)
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_message(match=r".*(rate limit|429|quota|too many requests|resource exhausted).*"),
+        reraise=True
+    )
+    async def _run_with_retry(self, prompt: str):
+        """Run Gemini with retry logic for rate limits"""
+        response = await asyncio.to_thread(
+            self.model.generate_content,
+            prompt
+        )
+        # Create a simple result object similar to Dedalus format
+        class Result:
+            def __init__(self, text):
+                self.final_output = text
+        return Result(response.text)
     
     async def process(
         self,
@@ -63,7 +82,7 @@ class RestaurantAgent:
         Returns:
             Dictionary with restaurants and metadata
         """
-        if not self.runner:
+        if not self.model:
             await self.initialize()
         
         # Get selected accommodation
@@ -84,17 +103,19 @@ class RestaurantAgent:
             request, selected_accommodation, user_profile
         )
         
-        # Run Dedalus with MCP servers
+        # Run Gemini API (with rate limit handling)
         try:
-            result = await self.runner.run(
-                input=prompt,
-                model=self.model,
-                mcp_servers=self.mcp_servers
-            )
+            result = await self._run_with_retry(prompt)
         except Exception as e:
+            error_msg = str(e).lower()
+            if "rate limit" in error_msg or "429" in error_msg or "quota" in error_msg or "resource exhausted" in error_msg:
+                raise RuntimeError(
+                    "API rate limit exceeded. Please wait a few minutes and try again. "
+                    "The Google Gemini API has usage limits. Consider upgrading your plan or waiting before retrying."
+                ) from e
             raise RuntimeError(
-                f"Error calling Dedalus Labs: {str(e)}. "
-                "Make sure DEDALUS_API_KEY is set correctly and you have access to the MCP servers."
+                f"Error calling Google Gemini API: {str(e)}. "
+                "Make sure GOOGLE_API_KEY is set correctly."
             ) from e
         
         # Parse and structure the results

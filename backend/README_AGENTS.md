@@ -2,15 +2,14 @@
 
 ## StayAgent
 
-The StayAgent uses **Dedalus Labs** to find accommodations for trips. It searches for properties via Airbnb API or embeddings search, filtering by amenities, reviews, and photos.
+The StayAgent uses **Google Gemini API** to find accommodations for trips. It uses AI reasoning to search for properties, filtering by amenities, reviews, and photos.
 
 ### Features
 
-- Uses Dedalus Labs with MCP servers for semantic search
-- Integrates with Exa MCP for travel research
-- Uses Brave Search MCP for accommodation information
+- Uses Google Gemini API for AI-powered search
 - Parses results into structured Accommodation objects
 - Filters by user preferences (amenities, budget, location)
+- Handles rate limits with automatic retry logic
 
 ### Usage
 
@@ -36,23 +35,18 @@ results = await agent.process(request)
 ### Configuration
 
 Set in `.env`:
-- `DEDALUS_MODEL`: Model to use (default: "openai/gpt-4.1")
-  - Recommended: `openai/gpt-5` or `openai/gpt-4.1` for better tool calling
-  - Alternative: `openai/gpt-5-mini` for faster responses
-- `DEDALUS_API_KEY`: Your Dedalus Labs API key
-  - Get your API key at [dedaluslabs.ai](https://dedaluslabs.ai)
-  - Create an account → Dashboard → Settings → Generate API key
-
-### MCP Servers Used
-
-1. **joerup/exa-mcp**: Semantic travel research
-2. **windsor/brave-search-mcp**: Travel information search
+- `GOOGLE_API_KEY`: Your Google Gemini API key (required)
+  - Get your API key at [Google AI Studio](https://makersuite.google.com/app/apikey)
+  - Sign in with Google account → Create API key
+- `GEMINI_MODEL`: Model to use (default: "gemini-1.5-pro")
+  - Options: `gemini-1.5-pro` (recommended), `gemini-1.5-flash` (faster), `gemini-pro`
 
 ### Testing
 
 1. **Set up your API key** in `.env`:
    ```bash
-   DEDALUS_API_KEY=your_actual_api_key_here
+   GOOGLE_API_KEY=your_actual_api_key_here
+   GEMINI_MODEL=gemini-1.5-pro
    ```
 
 2. **Run the test script**:

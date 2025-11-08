@@ -25,5 +25,5 @@ geopy==2.4.1
 folium==0.15.1
 beautifulsoup4==4.12.2
 lxml==4.9.3
-dedalus-labs
+google-generativeai>=0.3.0
 

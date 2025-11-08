@@ -30,9 +30,11 @@ cp .env.example .env
 ```
 
 Required API keys:
-- `DEDALUS_API_KEY` - For Dedalus Labs (required for StayAgent)
-  - Get your API key at [dedaluslabs.ai](https://dedaluslabs.ai)
-  - Create an account → Dashboard → Settings → Generate API key
+- `GOOGLE_API_KEY` - For Google Gemini API (required for StayAgent, RestaurantAgent, PlannerAgent)
+  - Get your API key at [Google AI Studio](https://makersuite.google.com/app/apikey)
+  - Sign in with Google account → Create API key
+- `GEMINI_MODEL` - Optional, defaults to "gemini-1.5-pro"
+  - Options: "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - For LLM (for other agents)
 
 4. **Test StayAgent**
@@ -77,7 +79,7 @@ curl -X POST "http://localhost:8000/api/trips/plan" \
 ```
 backend/
 ├── agents/           # Agent implementations
-│   ├── stay_agent.py      # StayAgent (using Dedalus Labs)
+│   ├── stay_agent.py      # StayAgent (using Google Gemini API)
 │   ├── travel_agent.py    # TravelAgent (placeholder)
 │   ├── experience_agent.py # ExperienceAgent (placeholder)
 │   ├── budget_agent.py    # BudgetAgent (placeholder)
@@ -99,11 +101,12 @@ backend/
 
 Make sure you're in the backend directory and the virtual environment is activated.
 
-### Dedalus Labs errors
+### Google Gemini API errors
 
-- Verify your `DEDALUS_API_KEY` is set correctly
-- Check that MCP servers are accessible
-- Ensure you have the latest version of `dedalus-labs`
+- Verify your `GOOGLE_API_KEY` is set correctly
+- Check that the API key has proper permissions
+- Ensure you have the latest version of `google-generativeai`
+- Check rate limits: Free tier has 15 requests per minute
 
 ### LangGraph errors
 
