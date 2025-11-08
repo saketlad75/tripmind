@@ -100,4 +100,3 @@ async def plan_trip(request: TripRequest):
 async def test_endpoint():
     """Test endpoint"""
     return {"status": "ok", "message": "TripMind API is running"}
-

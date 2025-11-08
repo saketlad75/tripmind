@@ -55,14 +55,38 @@ class Accommodation(BaseModel):
 
 class Transportation(BaseModel):
     """Transportation option"""
-    type: str  # flight, train, car, etc.
+    id: str
+    type: str  # flight, train, car, bus, rideshare, rental, etc.
     origin: str
     destination: str
     departure_time: Optional[datetime] = None
     arrival_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None  # Total travel time in minutes
     price: float
+    price_per_person: Optional[float] = None  # Price per person if applicable
     provider: str
     booking_url: Optional[str] = None
+    carbon_emissions_kg: Optional[float] = None  # CO2 emissions in kg
+    carbon_score: Optional[str] = None  # "low", "medium", "high" or rating 1-10
+    transfers: Optional[int] = None  # Number of transfers/connections
+    comfort_level: Optional[str] = None  # "economy", "business", "first", etc.
+    amenities: List[str] = Field(default_factory=list)  # Wi-Fi, meals, etc.
+    recommended: bool = False  # Whether this is the recommended option
+    recommendation_reason: Optional[str] = None  # Why it's recommended
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Route(BaseModel):
+    """Multi-modal route combining multiple transportation segments"""
+    id: str
+    segments: List[Transportation]  # Ordered list of transportation segments
+    total_price: float
+    total_duration_minutes: Optional[int] = None
+    total_carbon_emissions_kg: Optional[float] = None
+    total_carbon_score: Optional[str] = None
+    route_summary: str  # e.g., "NYC -> Zurich (flight) -> Interlaken (train) -> Hotel (cab)"
+    recommended: bool = False
+    recommendation_reason: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict)
 
 
