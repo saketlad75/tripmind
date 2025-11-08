@@ -1,5 +1,9 @@
 """
 API routes for TripMind
+
+NOTE: This API is designed for UI integration.
+All user registration and profile data comes from the frontend UI.
+No hardcoded user data - everything is received via API endpoints.
 """
 
 from fastapi import APIRouter, HTTPException

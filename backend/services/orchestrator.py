@@ -36,6 +36,7 @@ class TripOrchestrator:
         self.planner_agent = PlannerAgent(self.llm)
         self.workflow = self._build_workflow()
         # User profile storage (in production, use a database)
+        # Profiles are registered via API from UI registration
         self._user_profiles: Dict[str, UserProfile] = {}
     
     def _initialize_llm(self):

@@ -4,9 +4,13 @@ Test script to verify minimum requirements:
 - RestaurantAgent finds minimum 3-4 restaurants/cafes
 - Location extracted from prompt only
 - Budget from user profile
+
+NOTE: In production, user profiles come from UI registration via API.
+This test uses example data for testing purposes only.
 """
 
 import asyncio
+import sys
 from agents.restaurant_agent import RestaurantAgent
 from agents.stay_agent import StayAgent
 from shared.types import TripRequest, UserProfile
@@ -16,30 +20,44 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-async def test_minimum_requirements():
-    """Test that agents meet minimum requirements"""
+async def test_minimum_requirements(user_profile: UserProfile = None, prompt: str = None):
+    """
+    Test that agents meet minimum requirements
+    
+    Args:
+        user_profile: Optional UserProfile (if None, creates test profile)
+        prompt: Optional trip prompt (if None, uses default)
+    """
     
     print("=" * 80)
     print("Testing Minimum Requirements")
     print("=" * 80)
     
-    # Create user profile with budget
-    print("\n1. Creating User Profile...")
-    user_profile = UserProfile(
-        user_id="test_user_001",
-        name="Test User",
-        email="test@example.com",
-        budget=2500.0,  # Budget from profile
-        dietary_preferences=["vegetarian"],
-        disability_needs=[]
-    )
-    print(f"   ✓ Profile created with budget: ${user_profile.budget}")
+    # Use provided profile or create test profile
+    # NOTE: In production, profiles come from UI registration
+    if user_profile is None:
+        print("\n1. Creating Test User Profile (example data for testing)...")
+        user_profile = UserProfile(
+            user_id="test_user_001",
+            name="Test User",
+            email="test@example.com",
+            budget=2500.0,
+            dietary_preferences=["vegetarian"],
+            disability_needs=[]
+        )
+        print(f"   ✓ Test profile created with budget: ${user_profile.budget}")
+        print("   NOTE: In production, user profiles come from UI registration")
+    else:
+        print(f"\n1. Using provided user profile: {user_profile.user_id}")
+        print(f"   ✓ Profile budget: ${user_profile.budget}")
     
     # Create trip request with ONLY prompt (no explicit location or budget)
+    # In production, this comes from UI
     print("\n2. Creating Trip Request (prompt only)...")
+    test_prompt = prompt or "I want a 4-day relaxing beach vacation in Bali with good restaurants nearby"
     request = TripRequest(
-        prompt="I want a 4-day relaxing beach vacation in Bali with good restaurants nearby",
-        user_id="test_user_001",
+        prompt=test_prompt,
+        user_id=user_profile.user_id,
         duration_days=4,
         travelers=2
         # No destination, no budget - should be extracted/used from profile
@@ -120,5 +138,7 @@ async def test_minimum_requirements():
 
 
 if __name__ == "__main__":
+    # In production, user profiles come from UI registration via API
+    # This test uses example data for demonstration
     asyncio.run(test_minimum_requirements())
 
