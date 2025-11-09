@@ -50,6 +50,145 @@ class InviteRequest(BaseModel):
     tripId: str
     inviteEmail: str
 
+@trip_router.post("/chat", response_model=ChatResponse)
+async def chat_plan_trip(request: ChatRequest):
+    """
+    Chat-style trip planning endpoint for UI chat interface
+    
+    This endpoint:
+    1. Accepts a natural language prompt from the user
+    2. Runs all AI agents (StayAgent, RestaurantAgent, TravelAgent, ExperienceAgent, BudgetAgent, PlannerAgent)
+    3. Generates a complete trip plan
+    4. Stores the plan in the database
+    5. Returns the plan in a chat-friendly format
+    
+    If trip_id is provided, it updates an existing trip plan.
+    If not provided, it creates a new trip plan.
+    
+    Args:
+        request: ChatRequest with prompt, user_id, and optional trip_id
+        
+    Returns:
+        ChatResponse with trip_id, message, and complete TripPlan
+    """
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
+    
+    try:
+        # Get user profile
+        user_profile = orchestrator.get_user_profile(request.user_id)
+        if not user_profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile not found for user_id: {request.user_id}. Please create a profile first."
+            )
+        
+        # Generate or get trip_id
+        trip_id = request.trip_id or str(uuid.uuid4())
+        is_update = request.trip_id is not None
+        
+        # If updating, load existing trip plan to preserve destination and other details
+        existing_plan = None
+        if is_update:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT itinerary FROM itineraries 
+                    WHERE user_id = ? AND trip_id = ?
+                    """,
+                    (request.user_id, trip_id)
+                )
+                result = cursor.fetchone()
+                if result:
+                    plan_dict = json.loads(result['itinerary'])
+                    existing_plan = TripPlan(**plan_dict)
+                conn.close()
+            except Exception as e:
+                print(f"⚠️  Warning: Could not load existing trip plan: {e}")
+                # Continue without existing plan
+        
+        # Create TripRequest from chat prompt
+        # If updating, preserve destination and other details from existing plan
+        trip_request = TripRequest(
+            prompt=request.prompt,
+            user_id=request.user_id,
+            selected_accommodation_id=request.selected_accommodation_id
+        )
+        
+        # Preserve destination and other details from existing plan if updating
+        if existing_plan:
+            # Get destination from existing plan's request or prompt
+            if existing_plan.request:
+                if existing_plan.request.destination:
+                    trip_request.destination = existing_plan.request.destination
+                elif existing_plan.request.prompt:
+                    # Try to extract destination from original prompt
+                    # Look for location mentions in the original prompt
+                    original_prompt = existing_plan.request.prompt
+                    # Common patterns: "near [Location]", "in [Location]", "[Location], [State]"
+                    location_patterns = [
+                        r'near\s+([A-Z][a-zA-Z\s,]+?)(?:\s|,|$)',
+                        r'in\s+([A-Z][a-zA-Z\s,]+?)(?:\s|,|$)',
+                        r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?),\s*([A-Z]{2}|[A-Z][a-zA-Z]+)'
+                    ]
+                    for pattern in location_patterns:
+                        match = re.search(pattern, original_prompt, re.IGNORECASE)
+                        if match:
+                            if len(match.groups()) == 2:
+                                trip_request.destination = f"{match.group(1)}, {match.group(2)}"
+                            else:
+                                trip_request.destination = match.group(1).strip().rstrip(',')
+                            break
+                
+                # Preserve other details
+                if existing_plan.request.start_date:
+                    trip_request.start_date = existing_plan.request.start_date
+                if existing_plan.request.duration_days:
+                    trip_request.duration_days = existing_plan.request.duration_days
+                if existing_plan.request.travelers:
+                    trip_request.travelers = existing_plan.request.travelers
+            
+            # If still no destination, try to get it from selected accommodation
+            if not trip_request.destination and existing_plan.selected_accommodation:
+                acc = existing_plan.selected_accommodation
+                if acc.address:
+                    # Extract city/state from address
+                    address_parts = acc.address.split(',')
+                    if len(address_parts) >= 2:
+                        city = address_parts[-2].strip()
+                        state = address_parts[-1].strip()
+                        trip_request.destination = f"{city}, {state}"
+                    else:
+                        trip_request.destination = acc.address
+        
+        # Run all agents through orchestrator (same as test_all_agents_flow.py)
+        plan = await orchestrator.plan_trip(trip_request, user_profile)
+        
+        # Set trip_id in the plan
+        plan.trip_id = trip_id
+        
+        # Store trip plan in database
+        _save_trip_plan_to_db(request.user_id, trip_id, plan, is_update)
+        
+        # Generate chat-friendly message
+        message = _generate_chat_message(plan, is_update)
+        
+        return ChatResponse(
+            trip_id=trip_id,
+            message=message,
+            trip_plan=plan,
+            status="updated" if is_update else "new"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"❌ Error in chat_plan_trip: {error_details}")
+        raise HTTPException(status_code=500, detail=f"Error planning trip: {str(e)}")
+
 
 @trip_router.post("/plan", response_model=TripPlan)
 async def plan_trip(request: TripRequest):
@@ -218,4 +357,3 @@ async def create_trip(request: Dict[str, Any] = Body(...)):
         }
         return {"status": "created", "tripId": trip_id, "message": "Trip created successfully"}
     return {"status": "error", "message": "tripId is required"}
-

@@ -50,6 +50,7 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+backend/database/tripmind.db
 
 # Logs
 *.log
