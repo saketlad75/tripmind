@@ -155,6 +155,7 @@ class PlannerAgent:
         # Day 1: Arrival
         day1_activities = []
         day1_meals = []
+        experience_index = 0  # Track which experiences we've used
         
         # Add transportation as first activity
         if transportation:
@@ -180,6 +181,28 @@ class PlannerAgent:
                 "price": f"${accommodation.price_per_night:.2f}/night"
             })
         
+        # Add an experience on arrival day if available and if there's time (after 16:00)
+        # For short trips (2-3 days), be more flexible with experience duration
+        if experiences and experience_index < len(experiences):
+            exp = experiences[experience_index]
+            # For short trips, allow up to 3 hours; for longer trips, max 2 hours
+            max_duration = 3 if duration <= 3 else 2
+            # Only add if it's a short experience that can fit in the afternoon
+            if not exp.duration_hours or exp.duration_hours <= max_duration:
+                day1_activities.append({
+                    "time": "16:30",
+                    "type": "experience",
+                    "title": exp.name,
+                    "description": exp.description[:150] + "..." if len(exp.description) > 150 else exp.description,
+                    "category": exp.category,
+                    "location": exp.address,
+                    "duration": f"{exp.duration_hours}h" if exp.duration_hours else "1-2h",
+                    "price": f"${exp.price:.2f}" if exp.price else "Free",
+                    "rating": exp.rating,
+                    "booking_url": exp.booking_url
+                })
+                experience_index += 1
+        
         # Add first restaurant for dinner
         if restaurants:
             day1_meals.append({
@@ -202,6 +225,8 @@ class PlannerAgent:
         ))
         
         # Middle days: Activities and meals
+        # For trips with 2+ days, add middle days (days 2 to duration-1)
+        # For 2-day trips, this will be empty, so we'll handle experiences on day 1 and last day
         for day_num in range(2, duration):
             current_date = start_date + timedelta(days=day_num - 1)
             day_activities = []
@@ -218,10 +243,9 @@ class PlannerAgent:
                     "price_range": restaurants[1].price_range if len(restaurants) > 1 else restaurants[0].price_range
                 })
             
-            # Add experiences/activities
-            exp_index = day_num - 2
-            if experiences and exp_index < len(experiences):
-                exp = experiences[exp_index]
+            # Add morning experience/activity
+            if experiences and experience_index < len(experiences):
+                exp = experiences[experience_index]
                 day_activities.append({
                     "time": "10:30",
                     "type": "experience",
@@ -230,10 +254,13 @@ class PlannerAgent:
                     "category": exp.category,
                     "location": exp.address,
                     "duration": f"{exp.duration_hours}h" if exp.duration_hours else "Half day",
-                    "price": f"${exp.price:.2f}" if exp.price else "Free"
+                    "price": f"${exp.price:.2f}" if exp.price else "Free",
+                    "rating": exp.rating,
+                    "booking_url": exp.booking_url
                 })
+                experience_index += 1
             else:
-                # Generic activity
+                # Generic activity if no more experiences
                 day_activities.append({
                     "time": "10:30",
                     "type": "activity",
@@ -255,16 +282,46 @@ class PlannerAgent:
                     "price_range": restaurants[2].price_range if len(restaurants) > 2 else restaurants[0].price_range
                 })
             
-            # Add afternoon activity
-            day_activities.append({
-                "time": "15:00",
-                "type": "activity",
-                "title": "Free Time / Optional Activities",
-                "description": "Relax, shop, or explore at your own pace",
-                "location": "Various",
-                "duration": "Flexible",
-                "price": "Varies"
-            })
+            # Add afternoon experience if available
+            if experiences and experience_index < len(experiences):
+                exp = experiences[experience_index]
+                # Only add if it's a shorter experience (3 hours or less) for afternoon
+                if not exp.duration_hours or exp.duration_hours <= 3:
+                    day_activities.append({
+                        "time": "15:00",
+                        "type": "experience",
+                        "title": exp.name,
+                        "description": exp.description[:150] + "..." if len(exp.description) > 150 else exp.description,
+                        "category": exp.category,
+                        "location": exp.address,
+                        "duration": f"{exp.duration_hours}h" if exp.duration_hours else "2-3h",
+                        "price": f"${exp.price:.2f}" if exp.price else "Free",
+                        "rating": exp.rating,
+                        "booking_url": exp.booking_url
+                    })
+                    experience_index += 1
+                else:
+                    # If it's a longer experience, add as free time suggestion
+                    day_activities.append({
+                        "time": "15:00",
+                        "type": "activity",
+                        "title": "Free Time / Optional Activities",
+                        "description": "Relax, shop, or explore at your own pace",
+                        "location": "Various",
+                        "duration": "Flexible",
+                        "price": "Varies"
+                    })
+            else:
+                # Generic afternoon activity
+                day_activities.append({
+                    "time": "15:00",
+                    "type": "activity",
+                    "title": "Free Time / Optional Activities",
+                    "description": "Relax, shop, or explore at your own pace",
+                    "location": "Various",
+                    "duration": "Flexible",
+                    "price": "Varies"
+                })
             
             # Add dinner
             if restaurants:
@@ -304,6 +361,27 @@ class PlannerAgent:
                 "location": restaurants[0].address,
                 "price_range": restaurants[0].price_range
             })
+        
+        # For short trips (2-3 days), add experiences before check-out if available
+        # For longer trips, last day is typically just departure
+        if duration <= 3 and experiences and experience_index < len(experiences):
+            # Add a morning experience if available (before check-out)
+            exp = experiences[experience_index]
+            # Only add if it's a short experience (2 hours or less)
+            if not exp.duration_hours or exp.duration_hours <= 2:
+                last_day_activities.append({
+                    "time": "10:00",
+                    "type": "experience",
+                    "title": exp.name,
+                    "description": exp.description[:150] + "..." if len(exp.description) > 150 else exp.description,
+                    "category": exp.category,
+                    "location": exp.address,
+                    "duration": f"{exp.duration_hours}h" if exp.duration_hours else "1-2h",
+                    "price": f"${exp.price:.2f}" if exp.price else "Free",
+                    "rating": exp.rating,
+                    "booking_url": exp.booking_url
+                })
+                experience_index += 1
         
         # Add check-out
         if accommodation:
