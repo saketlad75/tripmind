@@ -1,9 +1,10 @@
 import React from 'react';
 import './Footer.css';
+import './CompanyName.css';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
-  const companyName = "Phoenix Travel";
+  const companyName = "TripMIND";
 
   return (
     <footer className="footer">
@@ -11,7 +12,7 @@ const Footer = () => {
         <div className="footer-section">
           <h3 className="footer-title">About Us</h3>
           <p className="footer-about">
-            Welcome to Phoenix Travel, your premier destination for discovering and booking 
+            Welcome to <strong className="company-name">TripMIND</strong>, your premier destination for discovering and booking 
             amazing travel experiences. We connect travelers with the world's most beautiful 
             destinations, offering personalized recommendations powered by AI technology.
           </p>
@@ -20,7 +21,7 @@ const Footer = () => {
         <div className="footer-section">
           <h3 className="footer-title">Contact Information</h3>
           <div className="contact-info">
-            <p><strong>Email:</strong> support@phoenixtravel.com</p>
+            <p><strong>Email:</strong> support@tripmind.com</p>
             <p><strong>Phone:</strong> +1 (555) 123-4567</p>
             <p><strong>Address:</strong> 123 Travel Street, Adventure City, AC 12345</p>
           </div>
@@ -59,7 +60,7 @@ const Footer = () => {
             </a>
           </div>
           <div className="copyright">
-            <p>© {currentYear} {companyName}. All rights reserved.</p>
+            <p>© {currentYear} <strong className="company-name">{companyName}</strong>. All rights reserved.</p>
           </div>
         </div>
       </div>

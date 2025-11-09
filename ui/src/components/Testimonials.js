@@ -1,5 +1,6 @@
 import React from 'react';
 import './Testimonials.css';
+import './CompanyName.css';
 
 const Testimonials = () => {
   const testimonials = [
@@ -8,7 +9,7 @@ const Testimonials = () => {
       name: 'Sarah Johnson',
       location: 'New York, USA',
       rating: 5,
-      text: 'Phoenix Travel made planning my European tour effortless. Everything from flights to shopping recommendations was spot on!',
+      text: '<strong>TripMIND</strong> made planning my European tour effortless. Everything from flights to shopping recommendations was spot on!',
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
     },
     {
@@ -49,7 +50,7 @@ const Testimonials = () => {
             <div className="testimonial-rating">
               {'★'.repeat(testimonial.rating)}
             </div>
-            <p className="testimonial-text">"{testimonial.text}"</p>
+            <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: `"${testimonial.text}"` }} />
           </div>
         ))}
       </div>

@@ -61,12 +61,13 @@ const HeroBanner = () => {
   ];
 
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
+  const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
 
   // Rotate through different sets of 10 destinations
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSetIndex((prevIndex) => (prevIndex + 1) % destinationSets.length);
-    }, 4000); // Rotate every 4 seconds
+    }, 8000); // Rotate every 8 seconds (slower, less distracting)
 
     return () => clearInterval(interval);
   }, [destinationSets.length]);
@@ -83,9 +84,9 @@ const HeroBanner = () => {
     <div className="hero-banner">
       <div className="destinations-grid-container">
         {/* Top Row - 5 columns */}
-        <div className="destination-row-top">
-          {topRow.map((destination) => (
-            <div key={destination.id} className="destination-card">
+        <div className="destination-row-top" key={`top-${currentSetIndex}`}>
+          {topRow.map((destination, index) => (
+            <div key={`${currentSetIndex}-${destination.id}`} className="destination-card carousel-item">
               <div className="card-image-wrapper">
                 <img 
                   src={destination.image} 
@@ -108,9 +109,9 @@ const HeroBanner = () => {
         </div>
 
         {/* Bottom Row - 5 columns */}
-        <div className="destination-row-bottom">
-          {bottomRow.map((destination) => (
-            <div key={destination.id} className="destination-card">
+        <div className="destination-row-bottom" key={`bottom-${currentSetIndex}`}>
+          {bottomRow.map((destination, index) => (
+            <div key={`${currentSetIndex}-${destination.id}`} className="destination-card carousel-item">
               <div className="card-image-wrapper">
                 <img 
                   src={destination.image} 

@@ -8,7 +8,7 @@
 .testimonials-title {
   font-size: 32px;
   font-weight: bold;
-  color: white;
+  color: #6E6E6E;
   text-align: center;
   margin-bottom: 40px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -55,13 +55,13 @@
 .testimonial-name {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: #6E6E6E;
   margin-bottom: 4px;
 }
 
 .testimonial-location {
   font-size: 14px;
-  color: #666;
+  color: #6E6E6E;
 }
 
 .testimonial-rating {
@@ -73,8 +73,19 @@
 .testimonial-text {
   font-size: 15px;
   line-height: 1.6;
-  color: #555;
+  color: #6E6E6E;
   font-style: italic;
+}
+
+.testimonial-text strong {
+  font-weight: 800;
+  background: linear-gradient(135deg, #FF385C 0%, #FF6B35 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-size: 1.05em;
 }
 
 @media (max-width: 1024px) {

@@ -8,7 +8,7 @@
 .category-title {
   font-size: 32px;
   font-weight: bold;
-  color: white;
+  color: #6E6E6E;
   text-align: center;
   margin-bottom: 40px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -44,13 +44,13 @@
 .category-name {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: #6E6E6E;
   margin-bottom: 8px;
 }
 
 .category-description {
   font-size: 14px;
-  color: #666;
+  color: #6E6E6E;
 }
 
 @media (max-width: 1200px) {
