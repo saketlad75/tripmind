@@ -158,6 +158,8 @@ class TripPlan(BaseModel):
     experiences: List[Experience]
     itinerary: List[DayItinerary]
     budget: BudgetBreakdown
+    map_data: Optional[Dict[str, Any]] = None
+    trip_id: Optional[str] = None  # Trip ID for API responses
     created_at: datetime = Field(default_factory=datetime.now)
     status: str = "draft"  # draft, approved, booked
 

@@ -1,11 +1,11 @@
 """
-RestaurantAgent - Finds restaurants using Dedalus Labs
+RestaurantAgent - Finds restaurants using Google Gemini
 Suggests restaurants near the selected accommodation
 Considers user's budget and dietary preferences
 """
 
 from typing import Dict, Any, Optional, List
-from dedalus_labs import AsyncDedalus, DedalusRunner
+from agents.gemini_search_agent import GeminiSearchAgent
 from shared.types import TripRequest, Restaurant, Accommodation, UserProfile
 import json
 import os
@@ -22,35 +22,20 @@ class RestaurantAgent:
         Initialize RestaurantAgent
         
         Args:
-            llm: Not used with Dedalus Labs (kept for compatibility with orchestrator)
+            llm: Not used (kept for compatibility with orchestrator)
         """
-        self.client = None
-        self.runner = None
-        self.mcp_servers = [
-            "joerup/exa-mcp",           # For semantic restaurant research
-            "windsor/brave-search-mcp",  # For restaurant information search
-        ]
-        # Use GPT-5 or GPT-4.1 for better tool calling (as per Dedalus docs)
-        self.model = os.getenv("DEDALUS_MODEL", "openai/gpt-4.1")
+        self.gemini_agent = GeminiSearchAgent()
     
     async def initialize(self):
-        """Initialize Dedalus client and runner"""
-        # Check for API key
-        api_key = os.getenv("DEDALUS_API_KEY")
-        if not api_key or api_key == "your_dedalus_api_key_here":
-            raise ValueError(
-                "DEDALUS_API_KEY not set. Please set it in your .env file. "
-                "Get your API key at https://dedaluslabs.ai"
-            )
-        
-        self.client = AsyncDedalus()
-        self.runner = DedalusRunner(self.client)
+        """Initialize Gemini search agent"""
+        await self.gemini_agent.initialize()
     
     async def process(
         self,
         request: TripRequest,
         stay_results: Optional[Dict[str, Any]] = None,
-        user_profile: Optional[UserProfile] = None
+        user_profile: Optional[UserProfile] = None,
+        user_context: Optional[dict] = None
     ) -> Dict[str, Any]:
         """
         Process restaurant search request
@@ -63,7 +48,7 @@ class RestaurantAgent:
         Returns:
             Dictionary with restaurants and metadata
         """
-        if not self.runner:
+        if not self.gemini_agent.model:
             await self.initialize()
         
         # Get selected accommodation
@@ -81,25 +66,22 @@ class RestaurantAgent:
         
         # Build the prompt for restaurant search
         prompt = self._build_search_prompt(
-            request, selected_accommodation, user_profile
+            request, selected_accommodation, user_profile, user_context
         )
         
-        # Run Dedalus with MCP servers
+        # Search using Gemini
         try:
-            result = await self.runner.run(
-                input=prompt,
-                model=self.model,
-                mcp_servers=self.mcp_servers
-            )
+            result = await self.gemini_agent.search(prompt, format_json=True)
+            output = result.get("results", result.get("raw_output", ""))
         except Exception as e:
             raise RuntimeError(
-                f"Error calling Dedalus Labs: {str(e)}. "
-                "Make sure DEDALUS_API_KEY is set correctly and you have access to the MCP servers."
+                f"Error calling Gemini: {str(e)}. "
+                "Make sure GEMINI_API_KEY is set correctly."
             ) from e
         
         # Parse and structure the results
         restaurants = self._parse_results(
-            result.final_output, request, selected_accommodation, user_profile
+            output, request, selected_accommodation, user_profile
         )
         
         # Validate minimum requirements
@@ -109,7 +91,7 @@ class RestaurantAgent:
         
         return {
             "restaurants": restaurants,
-            "raw_output": result.final_output,
+            "raw_output": output,
             "count": len(restaurants),
             "meets_minimum": len(restaurants) >= min_required,
             "selected_accommodation": selected_accommodation
@@ -142,20 +124,24 @@ class RestaurantAgent:
         self,
         request: TripRequest,
         accommodation: Accommodation,
-        user_profile: Optional[UserProfile]
+        user_profile: Optional[UserProfile],
+        user_context: Optional[dict] = None
     ) -> str:
         """Build a detailed prompt for restaurant search"""
         prompt_parts = [
             f"I need to find restaurants near a selected accommodation.",
+            f"\nUser's Trip Description:",
+            f'"{request.prompt}"',
+            f"\nNOTE: The trip description above has PRIORITY. If it conflicts with user profile data, use the trip description.",
             f"\nAccommodation Details:",
             f"- Name: {accommodation.title}",
             f"- Address: {accommodation.address}",
             f"- Location: {accommodation.location.get('lat', 0)}, {accommodation.location.get('lng', 0)}",
         ]
         
-        # Add user preferences
+        # Add user preferences (but prompt has priority)
         if user_profile:
-            prompt_parts.append(f"\nUser Preferences:")
+            prompt_parts.append(f"\nUser Preferences (from profile, use only if not in trip description):")
             
             if user_profile.dietary_preferences:
                 prompt_parts.append(
@@ -176,6 +162,14 @@ class RestaurantAgent:
                 daily_meal_budget = meal_budget / days
                 prompt_parts.append(
                     f"- Budget: ${daily_meal_budget:.2f} per day for meals (out of ${budget:.2f} total budget)"
+                )
+        
+        # Add user context (language preferences, etc.)
+        if user_context:
+            if user_context.get('language_preferences'):
+                prompt_parts.append(
+                    f"\nUser Context: Language preferences: {', '.join(user_context['language_preferences'])} "
+                    f"(prefer restaurants with menus/staff in these languages if possible)"
                 )
         
         prompt_parts.extend([
@@ -244,10 +238,10 @@ class RestaurantAgent:
         user_profile: Optional[UserProfile]
     ) -> List[Restaurant]:
         """
-        Parse Dedalus output into structured Restaurant objects
+        Parse Gemini output into structured Restaurant objects
         
         Args:
-            output: Raw output from Dedalus
+            output: Raw output from Gemini
             request: Original trip request
             accommodation: Selected accommodation
             user_profile: User profile

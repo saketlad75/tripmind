@@ -14,6 +14,8 @@ from .gemini_search_agent import GeminiSearchAgent
 from .experience_agent import ExperienceAgent
 from .budget_agent import BudgetAgent
 from .planner_agent import PlannerAgent
+from .intent_classifier import IntentClassifier
+from .qa_agent import QAAgent
 
 __all__ = [
     "StayAgent",
@@ -27,5 +29,7 @@ __all__ = [
     "GeminiSearchAgent",
     "ExperienceAgent",
     "BudgetAgent",
-    "PlannerAgent"
+    "PlannerAgent",
+    "IntentClassifier",
+    "QAAgent"
 ]

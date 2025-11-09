@@ -87,7 +87,8 @@ class TravelAgent:
         
         # Step 1: Check user preferences first, then analyze route
         user_preferred_mode = None
-        if request.preferences and "mode_preferences" in request.preferences:
+        # Check if request has preferences (for backward compatibility)
+        if hasattr(request, 'preferences') and request.preferences and "mode_preferences" in request.preferences:
             mode_prefs = request.preferences["mode_preferences"]
             if isinstance(mode_prefs, list) and len(mode_prefs) > 0:
                 # If user explicitly requests a specific mode, prioritize it
@@ -101,6 +102,15 @@ class TravelAgent:
                     user_preferred_mode = "train"
                 elif "by cab" in prompt_lower or "cab" in prompt_lower or "taxi" in prompt_lower or "airport" in prompt_lower:
                     user_preferred_mode = "car"
+        else:
+            # Check prompt for mode preferences
+            prompt_lower = request.prompt.lower()
+            if "by bus" in prompt_lower or "bus" in prompt_lower:
+                user_preferred_mode = "bus"
+            elif "by train" in prompt_lower or "train" in prompt_lower:
+                user_preferred_mode = "train"
+            elif "by cab" in prompt_lower or "cab" in prompt_lower or "taxi" in prompt_lower or "airport" in prompt_lower:
+                user_preferred_mode = "car"
         
         # Step 2: Analyze route to determine best transportation mode
         route_analysis = await self.route_analyzer.analyze_route(origin, destination)
@@ -205,8 +215,13 @@ class TravelAgent:
     
     def _extract_origin(self, request: TripRequest) -> str:
         """Extract origin location from request"""
-        # Check preferences first
-        if request.preferences:
+        # Check if origin was stored directly (from generate_itinerary script)
+        if hasattr(request, '_origin') and request._origin:
+            return request._origin
+        
+        # Check if request has preferences attribute (from old structure)
+        # New TripRequest doesn't have preferences, so we'll infer from prompt
+        if hasattr(request, 'preferences') and request.preferences:
             if "origin" in request.preferences:
                 origin = request.preferences["origin"]
                 if isinstance(origin, dict) and "text" in origin:
@@ -225,15 +240,19 @@ class TravelAgent:
         prompt_lower = request.prompt.lower()
         import re
         patterns = [
-            r"from\s+([A-Z][a-zA-Z\s,]+?)(?:\s+to|\s+for|$)",
+            r"from\s+([A-Z][a-zA-Z\s,]+?)(?:\s+to|\s+for|\s+with|$)",
             r"traveling\s+from\s+([A-Z][a-zA-Z\s,]+?)(?:\s+to|\s+for|$)",
             r"departing\s+from\s+([A-Z][a-zA-Z\s,]+?)(?:\s+to|\s+for|$)",
+            r"\(traveling\s+from\s+([A-Z][a-zA-Z\s,]+?)\)",  # From enhanced prompt
         ]
         
         for pattern in patterns:
-            match = re.search(pattern, prompt_lower)
+            match = re.search(pattern, request.prompt, re.IGNORECASE)
             if match:
-                return match.group(1).strip().title()
+                origin = match.group(1).strip().rstrip(',').title()
+                # Clean up common suffixes
+                origin = re.sub(r'\s*\(.*?\)\s*$', '', origin)
+                return origin
         
         return "User Location"
     
@@ -258,7 +277,11 @@ class TravelAgent:
         request: TripRequest
     ):
         """Mark recommended options based on user preferences"""
-        preferences = request.preferences or {}
+        # Check if request has preferences (for backward compatibility)
+        if hasattr(request, 'preferences') and request.preferences:
+            preferences = request.preferences
+        else:
+            preferences = {}
         priority = preferences.get("priority", "balanced")
         
         all_options = flights + trains

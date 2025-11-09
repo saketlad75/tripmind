@@ -1,11 +1,11 @@
 """
-StayAgent - Finds accommodations using Dedalus Labs
-Searches for properties via Airbnb API or embeddings search
+StayAgent - Finds accommodations using Google Gemini
+Searches for properties via web search
 Filters by amenities, reviews, photos
 """
 
 from typing import Dict, Any, Optional, List
-from dedalus_labs import AsyncDedalus, DedalusRunner
+from agents.gemini_search_agent import GeminiSearchAgent
 from shared.types import TripRequest, Accommodation, UserProfile
 import json
 import os
@@ -22,31 +22,20 @@ class StayAgent:
         Initialize StayAgent
         
         Args:
-            llm: Not used with Dedalus Labs (kept for compatibility with orchestrator)
+            llm: Not used (kept for compatibility with orchestrator)
         """
-        self.client = None
-        self.runner = None
-        self.mcp_servers = [
-            "joerup/exa-mcp",           # For semantic travel research
-            "windsor/brave-search-mcp",  # For travel information search
-        ]
-        # Use GPT-5 or GPT-4.1 for better tool calling (as per Dedalus docs)
-        self.model = os.getenv("DEDALUS_MODEL", "openai/gpt-4.1")
+        self.gemini_agent = GeminiSearchAgent()
     
     async def initialize(self):
-        """Initialize Dedalus client and runner"""
-        # Check for API key
-        api_key = os.getenv("DEDALUS_API_KEY")
-        if not api_key or api_key == "your_dedalus_api_key_here":
-            raise ValueError(
-                "DEDALUS_API_KEY not set. Please set it in your .env file. "
-                "Get your API key at https://dedaluslabs.ai"
-            )
-        
-        self.client = AsyncDedalus()
-        self.runner = DedalusRunner(self.client)
+        """Initialize Gemini search agent"""
+        await self.gemini_agent.initialize()
     
-    async def process(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> Dict[str, Any]:
+    async def process(
+        self, 
+        request: TripRequest, 
+        user_profile: Optional[UserProfile] = None,
+        user_context: Optional[dict] = None
+    ) -> Dict[str, Any]:
         """
         Process trip request to find accommodations
         
@@ -56,27 +45,24 @@ class StayAgent:
         Returns:
             Dictionary with accommodations and metadata
         """
-        if not self.runner:
+        if not self.gemini_agent.model:
             await self.initialize()
         
         # Build the prompt for accommodation search
-        prompt = self._build_search_prompt(request, user_profile)
+        prompt = self._build_search_prompt(request, user_profile, user_context)
         
-        # Run Dedalus with MCP servers
+        # Search using Gemini
         try:
-            result = await self.runner.run(
-                input=prompt,
-                model=self.model,
-                mcp_servers=self.mcp_servers
-            )
+            result = await self.gemini_agent.search(prompt, format_json=True)
+            output = result.get("results", result.get("raw_output", ""))
         except Exception as e:
             raise RuntimeError(
-                f"Error calling Dedalus Labs: {str(e)}. "
-                "Make sure DEDALUS_API_KEY is set correctly and you have access to the MCP servers."
+                f"Error calling Gemini: {str(e)}. "
+                "Make sure GEMINI_API_KEY is set correctly."
             ) from e
         
         # Parse and structure the results
-        accommodations = self._parse_results(result.final_output, request)
+        accommodations = self._parse_results(output, request)
         
         # Validate minimum requirements
         min_required = 3
@@ -85,18 +71,24 @@ class StayAgent:
         
         return {
             "accommodations": accommodations,
-            "raw_output": result.final_output,
+            "raw_output": output,
             "count": len(accommodations),
             "meets_minimum": len(accommodations) >= min_required
         }
     
-    def _build_search_prompt(self, request: TripRequest, user_profile: Optional[UserProfile] = None) -> str:
+    def _build_search_prompt(
+        self, 
+        request: TripRequest, 
+        user_profile: Optional[UserProfile] = None,
+        user_context: Optional[dict] = None
+    ) -> str:
         """Build a detailed prompt for accommodation search"""
         prompt_parts = [
             f"I need help finding accommodations for a trip.",
             f"\nUser's Trip Description:",
             f'"{request.prompt}"',
             f"\nIMPORTANT: Extract the destination/location from the trip description above.",
+            f"\nNOTE: The trip description above has PRIORITY. If it conflicts with user profile data, use the trip description.",
         ]
         
         # Add duration if available
@@ -107,7 +99,7 @@ class StayAgent:
         
         prompt_parts.append(f"Number of travelers: {request.travelers}")
         
-        # Budget from user profile or request
+        # Budget from request (prompt) first, then user profile
         budget = request.budget
         if not budget and user_profile and user_profile.budget:
             budget = user_profile.budget
@@ -122,10 +114,20 @@ class StayAgent:
             budget_per_night = budget / duration if duration > 0 else budget
             prompt_parts.append(f"Approximate budget per night: ${budget_per_night:.2f}")
         
-        # Add user profile preferences if available
+        # Add user profile preferences if available (but prompt has priority)
         if user_profile:
             if user_profile.disability_needs:
                 prompt_parts.append(f"\nAccessibility Requirements: {', '.join(user_profile.disability_needs)}")
+        
+        # Add user context (home_city, occupation, etc.) for better recommendations
+        if user_context:
+            context_parts = []
+            if user_context.get('home_city'):
+                context_parts.append(f"User's home city: {user_context['home_city']} (for context)")
+            if user_context.get('occupation'):
+                context_parts.append(f"User's occupation: {user_context['occupation']} (may prefer business-friendly amenities)")
+            if context_parts:
+                prompt_parts.append(f"\nUser Context: {', '.join(context_parts)}")
         
         prompt_parts.extend([
             "\nPlease help me find accommodations by:",
@@ -177,10 +179,10 @@ class StayAgent:
     
     def _parse_results(self, output: str, request: TripRequest) -> List[Accommodation]:
         """
-        Parse Dedalus output into structured Accommodation objects
+        Parse Gemini output into structured Accommodation objects
         
         Args:
-            output: Raw output from Dedalus
+            output: Raw output from Gemini
             request: Original trip request
             
         Returns:
@@ -262,7 +264,7 @@ class StayAgent:
     def _extract_from_text(self, text: str, request: TripRequest) -> Optional[Accommodation]:
         """Extract accommodation info from unstructured text (fallback)"""
         # This is a basic fallback - in production, you'd want more sophisticated parsing
-        # or ask Dedalus to return structured JSON
+        # or ask Gemini to return structured JSON
         lines = text.split("\n")
         title = "Accommodation Recommendation"
         description = text[:500]  # First 500 chars
