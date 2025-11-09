@@ -269,8 +269,6 @@ async def test_endpoint():
     """Test endpoint"""
     return {"status": "ok", "message": "TripMind API is running"}
 
-<<<<<<< Updated upstream
-=======
 
 @trip_router.post("/{user_id}/{trip_id}/follow-up")
 async def handle_follow_up(user_id: str, trip_id: str, request: FollowUpRequest):
