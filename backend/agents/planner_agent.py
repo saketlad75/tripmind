@@ -1,12 +1,8 @@
 """
-PlannerAgent - Placeholder for planner agent
-Will be implemented later
+PlannerAgent - Creates comprehensive trip plans with day-by-day itineraries
+Uses Google Gemini API to generate detailed itineraries
 """
 
-<<<<<<< Updated upstream
-from typing import Dict, Any, Optional
-from shared.types import TripRequest, TripPlan
-=======
 from typing import Dict, Any, Optional, List
 import google.generativeai as genai
 from shared.types import (
@@ -22,11 +18,11 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_message
+    retry_if_exception_message,
+    retry_if_exception_type
 )
 
 load_dotenv()
->>>>>>> Stashed changes
 
 
 class PlannerAgent:
@@ -34,37 +30,30 @@ class PlannerAgent:
     
     def __init__(self, llm=None):
         self.llm = llm
+        self.model = None
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     async def initialize(self):
-        """Initialize the agent"""
-        pass
+        """Initialize the Gemini model"""
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key or api_key == "your_google_api_key_here":
+            raise ValueError(
+                "GOOGLE_API_KEY not set. Please set it in your .env file. "
+                "Get your API key at https://makersuite.google.com/app/apikey"
+            )
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(self.model_name)
     
     async def process(
         self,
         request: TripRequest,
         stay_results: Optional[Dict[str, Any]] = None,
+        restaurant_results: Optional[Dict[str, Any]] = None,
         travel_results: Optional[Dict[str, Any]] = None,
         experience_results: Optional[Dict[str, Any]] = None,
-        budget_results: Optional[Dict[str, Any]] = None
+        budget_results: Optional[Dict[str, Any]] = None,
+        user_profile: Optional[UserProfile] = None
     ) -> TripPlan:
-<<<<<<< Updated upstream
-        """Process planning request"""
-        # Return a placeholder plan
-        from shared.types import BudgetBreakdown
-        return TripPlan(
-            request=request,
-            accommodations=stay_results.get("accommodations", []) if stay_results else [],
-            transportation=[],
-            experiences=[],
-            itinerary=[],
-            budget=BudgetBreakdown(
-                accommodation=0.0,
-                transportation=0.0,
-                experiences=0.0,
-                meals=0.0,
-                miscellaneous=0.0,
-                total=0.0
-=======
         """
         Create comprehensive trip plan with day-by-day itinerary
         
@@ -127,7 +116,7 @@ class PlannerAgent:
         
         # Calculate budget breakdown
         budget = self._calculate_budget(
-            selected_accommodation, restaurants, duration, request, user_profile
+            selected_accommodation, restaurants, duration, request, user_profile, budget_results
         )
         
         # Create final trip plan
@@ -137,7 +126,7 @@ class PlannerAgent:
             selected_accommodation=selected_accommodation,
             restaurants=restaurants,
             transportation=travel_results.get("transportation", []) if travel_results else [],
-            experiences=experience_results.get("experiences", []) if experience_results else [],
+            experiences=experiences,
             itinerary=itinerary,
             budget=budget,
             map_data=self._generate_map_data(selected_accommodation, restaurants, experiences),
@@ -151,13 +140,14 @@ class PlannerAgent:
     ) -> Optional[Accommodation]:
         """Get the selected accommodation"""
         if not stay_results or not request.selected_accommodation_id:
-            return None
+            accommodations = stay_results.get("accommodations", []) if stay_results else []
+            return accommodations[0] if accommodations else None
         
         accommodations = stay_results.get("accommodations", [])
         for acc in accommodations:
             if acc.id == request.selected_accommodation_id:
                 return acc
-        return None
+        return accommodations[0] if accommodations else None
     
     def _build_itinerary_prompt(
         self,
@@ -283,13 +273,30 @@ class PlannerAgent:
         
         return "\n".join(prompt_parts)
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_message(match=r".*(rate limit|429|quota|too many requests|resource exhausted).*"),
+        reraise=True
+    )
+    async def _run_with_retry(self, prompt: str):
+        """Run Gemini API call with retry logic"""
+        response = await asyncio.to_thread(
+            self.model.generate_content,
+            prompt
+        )
+        class Result:
+            def __init__(self, text):
+                self.final_output = text
+        return Result(response.text)
+    
     def _parse_itinerary(
         self,
         output: str,
         start_date: date,
         duration: int
     ) -> List[DayItinerary]:
-        """Parse Dedalus output into DayItinerary objects"""
+        """Parse Gemini output into DayItinerary objects"""
         itinerary = []
         
         try:
@@ -299,16 +306,33 @@ class PlannerAgent:
                 json_end = output.find("```", json_start)
                 json_str = output[json_start:json_end].strip()
                 data = json.loads(json_str)
+            elif "```" in output:
+                # Try to find JSON between any code blocks
+                json_start = output.find("```") + 3
+                json_end = output.find("```", json_start)
+                if json_end > json_start:
+                    json_str = output[json_start:json_end].strip()
+                    # Remove language identifier if present
+                    if json_str.startswith("json"):
+                        json_str = json_str[4:].strip()
+                    data = json.loads(json_str)
+                else:
+                    # Try to parse the whole output as JSON
+                    data = json.loads(output.strip())
+            else:
+                # Try to parse the whole output as JSON
+                data = json.loads(output.strip())
                 
-                if isinstance(data, dict) and "itinerary" in data:
-                    for day_data in data["itinerary"]:
-                        day_itinerary = self._create_day_itinerary(
-                            day_data, start_date, duration
-                        )
-                        if day_itinerary:
-                            itinerary.append(day_itinerary)
+            if isinstance(data, dict) and "itinerary" in data:
+                for day_data in data["itinerary"]:
+                    day_itinerary = self._create_day_itinerary(
+                        day_data, start_date, duration
+                    )
+                    if day_itinerary:
+                        itinerary.append(day_itinerary)
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            print(f"Error parsing itinerary JSON: {e}")
+            print(f"⚠️  Error parsing itinerary JSON: {e}")
+            print(f"Raw output preview: {output[:200]}...")
             # Fallback: create basic itinerary
             itinerary = self._create_fallback_itinerary(start_date, duration)
         
@@ -348,7 +372,7 @@ class PlannerAgent:
             
             activities = day_data.get("activities", [])
             meals = day_data.get("meals", [])
-            notes = day_data.get("notes")
+            notes = day_data.get("notes", "")
             
             return DayItinerary(
                 day=day_num,
@@ -356,7 +380,121 @@ class PlannerAgent:
                 activities=activities if isinstance(activities, list) else [],
                 meals=meals if isinstance(meals, list) else [],
                 notes=notes
->>>>>>> Stashed changes
             )
+        except (KeyError, ValueError, TypeError) as e:
+            print(f"⚠️  Error creating day itinerary: {e}")
+            return None
+    
+    def _create_fallback_itinerary(
+        self,
+        start_date: date,
+        duration: int
+    ) -> List[DayItinerary]:
+        """Create a basic fallback itinerary"""
+        itinerary = []
+        for day_num in range(1, duration + 1):
+            day_date = start_date + timedelta(days=day_num - 1)
+            itinerary.append(DayItinerary(
+                day=day_num,
+                date=day_date,
+                activities=[],
+                meals=[],
+                notes="Itinerary details to be generated"
+            ))
+        return itinerary
+    
+    def _calculate_budget(
+        self,
+        accommodation: Optional[Accommodation],
+        restaurants: List[Restaurant],
+        duration: int,
+        request: TripRequest,
+        user_profile: Optional[UserProfile],
+        budget_results: Optional[Dict[str, Any]]
+    ) -> BudgetBreakdown:
+        """Calculate budget breakdown"""
+        # Use budget from BudgetAgent if available
+        if budget_results and "budget" in budget_results:
+            budget = budget_results["budget"]
+            if isinstance(budget, BudgetBreakdown):
+                return budget
+            elif isinstance(budget, dict):
+                return BudgetBreakdown(**budget)
+        
+        # Fallback: calculate approximate budget
+        accommodation_cost = 0.0
+        if accommodation:
+            accommodation_cost = accommodation.total_price or (accommodation.price_per_night or 0) * duration
+        
+        # Estimate meal costs
+        meal_cost_per_day = 50.0  # Default estimate
+        if restaurants:
+            # Average price from restaurants
+            total_price = sum(
+                r.average_price_per_person or 30.0
+                for r in restaurants[:5]
+            )
+            meal_cost_per_day = (total_price / len(restaurants[:5])) * 2  # 2 meals per day
+        
+        meals_cost = meal_cost_per_day * duration * request.travelers
+        
+        # Miscellaneous (10% of total)
+        subtotal = accommodation_cost + meals_cost
+        miscellaneous = subtotal * 0.1
+        
+        return BudgetBreakdown(
+            accommodation=accommodation_cost,
+            transportation=0.0,  # Will be filled by BudgetAgent
+            experiences=0.0,  # Will be filled by BudgetAgent
+            meals=meals_cost,
+            miscellaneous=miscellaneous,
+            total=accommodation_cost + meals_cost + miscellaneous,
+            currency="USD"
         )
-
+    
+    def _generate_map_data(
+        self,
+        accommodation: Optional[Accommodation],
+        restaurants: List[Restaurant],
+        experiences: List[Experience]
+    ) -> Dict[str, Any]:
+        """Generate map data for visualization"""
+        locations = []
+        
+        # Add accommodation
+        if accommodation and accommodation.location:
+            locations.append({
+                "type": "accommodation",
+                "name": accommodation.title,
+                "lat": accommodation.location.get("lat"),
+                "lng": accommodation.location.get("lng"),
+                "address": accommodation.address
+            })
+        
+        # Add restaurants
+        for restaurant in restaurants[:10]:  # Limit to 10
+            if restaurant.location:
+                locations.append({
+                    "type": "restaurant",
+                    "name": restaurant.name,
+                    "lat": restaurant.location.get("lat"),
+                    "lng": restaurant.location.get("lng"),
+                    "address": restaurant.address
+                })
+        
+        # Add experiences
+        for experience in experiences[:10]:  # Limit to 10
+            if hasattr(experience, 'location') and experience.location:
+                locations.append({
+                    "type": "experience",
+                    "name": experience.name,
+                    "lat": experience.location.get("lat"),
+                    "lng": experience.location.get("lng"),
+                    "address": getattr(experience, 'address', 'Location TBD')
+                })
+        
+        return {
+            "center": locations[0] if locations else {"lat": 0, "lng": 0},
+            "locations": locations,
+            "zoom": 12
+        }

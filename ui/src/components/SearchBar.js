@@ -16,7 +16,7 @@ const SearchBar = () => {
   const wrapperRef = useRef(null);
 
   // API endpoint - update this with your backend URL
-  const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trip-planner';
+  const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trips';
 
   // Generate a unique tripId with clean URL format
   const generateTripId = (promptText) => {
@@ -58,53 +58,6 @@ const SearchBar = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      // Try to send to API (optional - app works without it)
-      try {
-        console.log('Attempting to send POST request to:', API_ENDPOINT);
-        console.log('Request data:', promptData);
-        
-        const response = await fetch(API_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(promptData),
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-
-        console.log('Response status:', response.status);
-
-        if (response.ok) {
-          // Try to parse JSON, but handle non-JSON responses
-          let data;
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-          } else {
-            const text = await response.text();
-            data = { message: text || 'Request sent successfully', tripId: tripId };
-          }
-          console.log('API Response:', data);
-        } else {
-          console.warn('API returned non-OK status:', response.status);
-          // Don't throw error, just log it - we'll save locally anyway
-        }
-      } catch (error) {
-        clearTimeout(timeoutId);
-        
-        // Only log the error, don't block the user
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          console.warn('Could not connect to backend API. Saving trip locally only.');
-        } else if (error.name === 'AbortError') {
-          console.warn('API request timed out. Saving trip locally only.');
-        } else {
-          console.warn('API error (non-critical):', error.message);
-        }
-        // Continue anyway - we'll save locally
-      }
-      
       // Always save trip to localStorage (works offline)
       saveTripToLocalStorage(newTrip);
       console.log('Trip saved locally:', newTrip);
@@ -112,10 +65,15 @@ const SearchBar = () => {
       // Show success message
       setSuccess(true);
       
+      // Store the prompt in localStorage so chat can pick it up
+      const promptKey = `trip_prompt_${tripId}`;
+      localStorage.setItem(promptKey, prompt.trim());
+      
       // Reset form after successful submission
       setPrompt('');
       
       // Navigate directly to the trip chat page immediately
+      // The chat will automatically send the prompt
       navigate(`/trips/${tripId}/chat`);
       
       setIsGenerating(false);

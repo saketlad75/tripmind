@@ -15,6 +15,9 @@ class UserService:
         """
         Fetch complete user data from database
         
+        Args:
+            user_id: External user_id (string like "Kartik7") or internal id
+        
         Returns:
             Dictionary with user, demographics, and travel_preferences data
         """
@@ -22,42 +25,43 @@ class UserService:
         cursor = conn.cursor()
         
         try:
-            # Get user data
-            # user_id can be either the integer id or a string representation
-            # Try to convert to int if possible, otherwise use as string
-            try:
-                user_id_int = int(user_id)
-                cursor.execute(
-                    """
-                    SELECT u.id, u.name, u.date_of_birth, u.email, 
-                           u.phone_number, u.country_of_residence, u.home_city,
-                           u.created_at, u.updated_at
-                    FROM users u
-                    WHERE u.id = ?
-                    """,
-                    (user_id_int,)
-                )
-            except ValueError:
-                # If user_id is not a number, it might be a different identifier
-                # For now, treat it as the id column
-                cursor.execute(
-                    """
-                    SELECT u.id, u.name, u.date_of_birth, u.email, 
-                           u.phone_number, u.country_of_residence, u.home_city,
-                           u.created_at, u.updated_at
-                    FROM users u
-                    WHERE u.id = ?
-                    """,
-                    (user_id,)
-                )
+            # First try to find by external user_id (string like "Kartik7")
+            cursor.execute(
+                """
+                SELECT u.id, u.user_id, u.name, u.date_of_birth, u.email, 
+                       u.phone_number, u.country_of_residence, u.home_city,
+                       u.created_at, u.updated_at
+                FROM users u
+                WHERE u.user_id = ?
+                """,
+                (user_id,)
+            )
             user_row = cursor.fetchone()
+            
+            # If not found by user_id, try as internal id (integer)
+            if not user_row:
+                try:
+                    user_id_int = int(user_id)
+                    cursor.execute(
+                        """
+                        SELECT u.id, u.user_id, u.name, u.date_of_birth, u.email, 
+                               u.phone_number, u.country_of_residence, u.home_city,
+                               u.created_at, u.updated_at
+                        FROM users u
+                        WHERE u.id = ?
+                        """,
+                        (user_id_int,)
+                    )
+                    user_row = cursor.fetchone()
+                except ValueError:
+                    pass  # user_id is not a number, already tried user_id
             
             if not user_row:
                 return None
             
             user_data = dict(user_row)
             
-            # Get demographics
+            # Get demographics (using internal id)
             cursor.execute(
                 """
                 SELECT gender, occupation, veteran_status, disability, 
@@ -65,7 +69,7 @@ class UserService:
                 FROM demographics
                 WHERE user_id = ?
                 """,
-                (user_data['id'],)
+                (user_data['id'],)  # Use internal id for foreign key
             )
             demo_row = cursor.fetchone()
             
@@ -125,24 +129,25 @@ class UserService:
         if user_data.get('travel_preferences'):
             diet_pref = user_data['travel_preferences'].get('diet_preference')
             if diet_pref and diet_pref.lower() not in ['none', 'null', '']:
-                # Convert single diet preference to list
-                if diet_pref.lower() == 'vegetarian':
-                    dietary_preferences = ['vegetarian']
-                elif diet_pref.lower() == 'vegan':
-                    dietary_preferences = ['vegan']
+                # Parse comma-separated diet preferences
+                if ',' in diet_pref:
+                    dietary_preferences = [p.strip().lower() for p in diet_pref.split(',')]
                 else:
-                    dietary_preferences = [diet_pref.lower()]
+                    dietary_preferences = [diet_pref.strip().lower()]
         
         # Note: budget and other fields removed from user_profiles table
         # They will come from the prompt or be inferred
         
+        # Use external user_id if available, otherwise use internal id
+        external_user_id = user_data.get('user_id') or str(user_data['id'])
+        
         return UserProfile(
-            user_id=str(user_data['id']),  # Convert id to string for UserProfile
+            user_id=external_user_id,  # Use external user_id (e.g., "Kartik7")
             name=user_data['name'],
             email=user_data['email'],
             phone_number=user_data.get('phone_number'),
             date_of_birth=user_data.get('date_of_birth'),
-            budget=None,  # No longer in database
+            budget=None,  # Budget not stored in database, will be set from prompt or user input
             dietary_preferences=dietary_preferences,
             disability_needs=disability_needs
         )

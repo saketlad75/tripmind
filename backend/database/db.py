@@ -101,12 +101,49 @@ def init_db():
         """
     )
 
+    # 6) Chat messages table (stores all chat messages for each trip)
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trip_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,                  -- User who sent the message
+            role TEXT NOT NULL,                      -- 'user' or 'assistant'
+            content TEXT NOT NULL,                   -- Message content
+            trip_plan TEXT,                           -- JSON string of TripPlan (for assistant messages with trip plans)
+            timestamp TEXT NOT NULL,                 -- ISO format timestamp
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        """
+    )
+
+    # 7) Shared trips table (tracks which users have access to which trips)
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shared_trips (
+            trip_id TEXT NOT NULL,
+            owner_user_id TEXT NOT NULL,             -- Original trip creator
+            shared_user_id TEXT NOT NULL,            -- User who has been invited
+            shared_user_email TEXT,                  -- Email of shared user (for invitations)
+            permission TEXT DEFAULT 'view_edit',     -- 'view_only' or 'view_edit'
+            invited_at TEXT NOT NULL DEFAULT (datetime('now')),
+            accepted_at TEXT,                        -- When user accepted the invitation
+            PRIMARY KEY (trip_id, shared_user_id),
+            FOREIGN KEY (trip_id) REFERENCES itineraries(trip_id) ON DELETE CASCADE
+        );
+        """
+    )
+
     # Create indexes for better query performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON itineraries(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itineraries_trip_id ON itineraries(trip_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_versions_user_trip ON itinerary_versions(user_id, trip_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_versions_modified_by ON itinerary_versions(modified_by);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_trip_id ON chat_messages(trip_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_shared_trips_trip_id ON shared_trips(trip_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_shared_trips_user_id ON shared_trips(shared_user_id);")
 
     conn.commit()
     conn.close()

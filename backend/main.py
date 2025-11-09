@@ -71,9 +71,18 @@ app = FastAPI(
 )
 
 # CORS configuration
+import os
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+if cors_origins == ["*"]:
+    # Development: allow all origins
+    cors_origins = ["*"]
+else:
+    # Production: specific origins
+    cors_origins = [origin.strip() for origin in cors_origins]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (for file:// and localhost)
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

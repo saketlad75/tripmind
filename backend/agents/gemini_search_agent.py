@@ -18,13 +18,13 @@ class GeminiSearchAgent:
     def __init__(self):
         self.client = None
         self.model = None
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        self.api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         
     async def initialize(self):
         """Initialize Gemini client"""
-        if not self.api_key or self.api_key == "your_gemini_api_key_here":
+        if not self.api_key or self.api_key == "your_gemini_api_key_here" or self.api_key == "your_google_api_key_here":
             raise ValueError(
-                "GEMINI_API_KEY not set. Please set it in your .env file. "
+                "GOOGLE_API_KEY or GEMINI_API_KEY not set. Please set it in your .env file. "
                 "Get your API key at https://makersuite.google.com/app/apikey"
             )
         
