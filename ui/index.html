@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern UI Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #764ba2;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:active {
+            transform: scale(0.98);
+        }
+
+        .counter {
+            font-size: 2em;
+            color: #667eea;
+            text-align: center;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #333;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .message {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .color-box {
+            width: 100%;
+            height: 100px;
+            border-radius: 10px;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+            background: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ Modern UI Demo</h1>
+        <p class="subtitle">Interactive webpage with HTML, CSS & JavaScript</p>
+
+        <div class="card">
+            <h2>🔢 Counter</h2>
+            <div class="counter" id="counter">0</div>
+            <button class="button" onclick="incrementCounter()">Increment</button>
+            <button class="button" onclick="decrementCounter()">Decrement</button>
+            <button class="button" onclick="resetCounter()">Reset</button>
+        </div>
+
+        <div class="card">
+            <h2>👋 Greeting</h2>
+            <div class="input-group">
+                <label for="nameInput">Enter your name:</label>
+                <input type="text" id="nameInput" placeholder="Type your name here..." onkeypress="handleKeyPress(event)">
+            </div>
+            <button class="button" onclick="showGreeting()">Say Hello</button>
+            <div class="message" id="greetingMessage"></div>
+        </div>
+
+        <div class="card">
+            <h2>🎨 Color Changer</h2>
+            <button class="button" onclick="changeColor()">Change Color</button>
+            <div class="color-box" id="colorBox"></div>
+        </div>
+    </div>
+
+    <script>
+        let counter = 0;
+        const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
+
+        function incrementCounter() {
+            counter++;
+            updateCounter();
+        }
+
+        function decrementCounter() {
+            counter--;
+            updateCounter();
+        }
+
+        function resetCounter() {
+            counter = 0;
+            updateCounter();
+        }
+
+        function updateCounter() {
+            const counterElement = document.getElementById('counter');
+            counterElement.textContent = counter;
+            counterElement.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                counterElement.style.transform = 'scale(1)';
+            }, 200);
+        }
+
+        function showGreeting() {
+            const nameInput = document.getElementById('nameInput');
+            const greetingMessage = document.getElementById('greetingMessage');
+            const name = nameInput.value.trim();
+
+            if (name) {
+                greetingMessage.textContent = `Hello, ${name}! 👋 Welcome to this demo!`;
+                greetingMessage.classList.add('show');
+                nameInput.value = '';
+            } else {
+                greetingMessage.textContent = 'Please enter your name first!';
+                greetingMessage.style.background = '#ffebee';
+                greetingMessage.style.color = '#c62828';
+                greetingMessage.classList.add('show');
+            }
+
+            setTimeout(() => {
+                greetingMessage.classList.remove('show');
+                greetingMessage.style.background = '#e8f5e9';
+                greetingMessage.style.color = '#2e7d32';
+            }, 3000);
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                showGreeting();
+            }
+        }
+
+        function changeColor() {
+            const colorBox = document.getElementById('colorBox');
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            colorBox.style.background = randomColor;
+            colorBox.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                colorBox.style.transform = 'scale(1)';
+            }, 300);
+        }
+
+        // Initialize color box
+        document.addEventListener('DOMContentLoaded', () => {
+            changeColor();
+        });
+    </script>
+</body>
+</html>
