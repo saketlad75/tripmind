@@ -3,10 +3,6 @@ API routes for TripMind
 """
 
 from fastapi import APIRouter, HTTPException
-<<<<<<< Updated upstream
-from shared.types import TripRequest, TripPlan
-from services.orchestrator import TripOrchestrator
-=======
 from pydantic import BaseModel
 from typing import Optional
 import uuid
@@ -17,15 +13,12 @@ from shared.types import TripRequest, TripPlan, UserProfile
 from services.orchestrator import TripOrchestrator
 from services.itinerary_service import ItineraryService
 from database.db import get_db_connection
->>>>>>> Stashed changes
 
 trip_router = APIRouter()
 
 # Global orchestrator instance (will be set by main.py)
 orchestrator: TripOrchestrator = None
 
-<<<<<<< Updated upstream
-=======
 # Global itinerary service instance (will be set by main.py)
 itinerary_service: ItineraryService = None
 
