@@ -105,8 +105,9 @@ class TripOrchestrator:
         stay_results = state.get("stay_results")
         travel_results = state.get("travel_results")
         experience_results = state.get("experience_results")
+        restaurant_results = state.get("restaurant_results")
         result = await self.budget_agent.process(
-            request, stay_results, travel_results, experience_results
+            request, stay_results, travel_results, experience_results, restaurant_results
         )
         return {"budget_results": result}
     
