@@ -10,6 +10,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #222222);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .App {
@@ -18,10 +21,33 @@ body {
   flex-direction: column;
 }
 
+/* Theme Variables */
+:root[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f7;
+  --text-primary: #6E6E6E;
+  --text-secondary: #6E6E6E;
+  --text-inverse: #ffffff;
+  --border-color: #ebebeb;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --overlay-bg: rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --text-primary: #6E6E6E;
+  --text-secondary: #6E6E6E;
+  --text-inverse: #222222;
+  --border-color: #2a2a2a;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --overlay-bg: rgba(255, 255, 255, 0.05);
+}
+
 .main-content {
   flex: 1;
   padding: 40px 20px 80px;
-  background: black;
+  background: var(--bg-primary);
   position: relative;
   min-height: 100vh;
   display: flex;
@@ -30,6 +56,7 @@ body {
   justify-content: flex-start;
   gap: 60px;
   overflow-x: hidden;
+  transition: background-color 0.3s ease;
 }
 
 .main-content > section {

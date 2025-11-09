@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
+import { createTripFromPrompt, saveTripToLocalStorage, extractLocation } from '../utils/tripUtils';
 import './SearchBar.css';
 
 const SearchBar = () => {
+  const { t } = useLanguage();
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -13,6 +18,24 @@ const SearchBar = () => {
   // API endpoint - update this with your backend URL
   const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trip-planner';
 
+  // Generate a unique tripId with clean URL format
+  const generateTripId = (promptText) => {
+    // Extract location for better URL
+    const location = extractLocation(promptText);
+    const locationSlug = location.toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .substring(0, 15);
+    
+    // Generate short unique ID (8 characters: last 6 digits of timestamp + 2 random chars)
+    const timestamp = Date.now();
+    const lastDigits = timestamp.toString().slice(-6);
+    const randomChars = Math.random().toString(36).substring(2, 4);
+    const shortId = `${lastDigits}${randomChars}`;
+    
+    return `${locationSlug || 'trip'}-${shortId}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (prompt.trim() && !isGenerating) {
@@ -20,49 +43,82 @@ const SearchBar = () => {
       setError(null);
       setSuccess(false);
       
+      const tripId = generateTripId(prompt.trim());
       const promptData = {
         prompt: prompt.trim(),
+        userId: 'Kartik7',
+        tripId: tripId,
         timestamp: new Date().toISOString()
       };
       
+      // Create trip object from the prompt (always create, even if API fails)
+      const newTrip = createTripFromPrompt(prompt.trim(), tripId, 'Kartik7');
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      // Try to send to API (optional - app works without it)
       try {
+        console.log('Attempting to send POST request to:', API_ENDPOINT);
+        console.log('Request data:', promptData);
+        
         const response = await fetch(API_ENDPOINT, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(promptData)
+          body: JSON.stringify(promptData),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        console.log('Response status:', response.status);
+
+        if (response.ok) {
+          // Try to parse JSON, but handle non-JSON responses
+          let data;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            const text = await response.text();
+            data = { message: text || 'Request sent successfully', tripId: tripId };
+          }
+          console.log('API Response:', data);
+        } else {
+          console.warn('API returned non-OK status:', response.status);
+          // Don't throw error, just log it - we'll save locally anyway
         }
-
-        const data = await response.json();
-        
-        // Handle successful response
-        console.log('API Response:', data);
-        setSuccess(true);
-        
-        // Reset form after successful submission
-        setPrompt('');
-        
-        // Reset success message after 3 seconds
-        setTimeout(() => {
-          setSuccess(false);
-        }, 3000);
-        
       } catch (error) {
-        console.error('Error sending prompt to backend:', error);
-        setError(error.message || 'Failed to send request. Please try again.');
+        clearTimeout(timeoutId);
         
-        // Clear error message after 5 seconds
-        setTimeout(() => {
-          setError(null);
-        }, 5000);
-      } finally {
-        setIsGenerating(false);
+        // Only log the error, don't block the user
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          console.warn('Could not connect to backend API. Saving trip locally only.');
+        } else if (error.name === 'AbortError') {
+          console.warn('API request timed out. Saving trip locally only.');
+        } else {
+          console.warn('API error (non-critical):', error.message);
+        }
+        // Continue anyway - we'll save locally
       }
+      
+      // Always save trip to localStorage (works offline)
+      saveTripToLocalStorage(newTrip);
+      console.log('Trip saved locally:', newTrip);
+      
+      // Show success message
+      setSuccess(true);
+      
+      // Reset form after successful submission
+      setPrompt('');
+      
+      // Navigate directly to the trip chat page immediately
+      navigate(`/trips/${tripId}/chat`);
+      
+      setIsGenerating(false);
     }
   };
 
@@ -130,13 +186,6 @@ const SearchBar = () => {
 
   return (
     <div id="search-bar" className="search-container">
-      <div className="search-header">
-        <h2 className="ai-planner-title">Your Smart Trip Planner ✈️</h2>
-        <p className="ai-planner-subtitle">
-          Travel smarter with AI that plans it all — flights, hotels, health, and weather, personalized just for you. One platform, every detail, zero hassle.
-        </p>
-      </div>
-      
       <form className="search-form" onSubmit={handleSubmit}>
         <div 
           ref={wrapperRef}
@@ -151,7 +200,7 @@ const SearchBar = () => {
           <textarea
             ref={textareaRef}
             className="search-input"
-            placeholder="Describe your travel plans in detail... For example: I'm planning a 10-day trip to Japan in March 2024. I have diabetes and need to ensure medical facilities are accessible. I prefer budget-friendly hotels near public transportation. Please include weather-based backup plans for outdoor activities, recommendations for what to pack, and shopping suggestions for items to buy before and after the trip. Also, I'd like information about cultural etiquette and any health requirements or vaccinations needed."
+            placeholder={t('searchPlaceholder')}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onFocus={() => setIsFocused(true)}
@@ -194,9 +243,6 @@ const SearchBar = () => {
             <p>✅ <strong>Success:</strong> Your travel plan request has been sent successfully!</p>
           </div>
         )}
-        <div className="search-hint">
-          <p>💡 <strong>Tip:</strong> The more details you provide, the better your personalized itinerary will be. Include dates, preferences, medical needs, budget, and any special requirements.</p>
-        </div>
       </form>
     </div>
   );

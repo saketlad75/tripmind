@@ -22,12 +22,25 @@
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 5px;
+  color: white;
 }
 
 .footer-about {
   font-size: 14px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.8);
+  color: white;
+}
+
+.footer-about .company-name,
+.copyright .company-name {
+  font-weight: 800;
+  background: linear-gradient(135deg, #FF385C 0%, #FF6B35 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-size: 1.1em;
 }
 
 .contact-info {
@@ -38,7 +51,7 @@
 
 .contact-info p {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
+  color: white;
   line-height: 1.6;
 }
 
@@ -70,7 +83,7 @@
 }
 
 .social-icon {
-  color: rgba(255, 255, 255, 0.8);
+  color: white;
   transition: all 0.3s ease;
 }
 
@@ -85,7 +98,7 @@
 
 .copyright p {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: white;
 }
 
 @media (max-width: 768px) {

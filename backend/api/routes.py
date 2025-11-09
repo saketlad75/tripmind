@@ -2,106 +2,53 @@
 API routes for TripMind
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel
-from typing import Optional
-import uuid
-from datetime import datetime
-import json
-import re
-from shared.types import TripRequest, TripPlan, UserProfile
+from typing import List, Optional, Dict, Any
+from shared.types import TripRequest, TripPlan
 from services.orchestrator import TripOrchestrator
-from services.itinerary_service import ItineraryService
-from database.db import get_db_connection
+import os
+import json
 
 trip_router = APIRouter()
 
 # Global orchestrator instance (will be set by main.py)
 orchestrator: TripOrchestrator = None
 
-# Global itinerary service instance (will be set by main.py)
-itinerary_service: ItineraryService = None
+# In-memory storage for trips and messages (in production, use a database)
+trips_storage: Dict[str, Dict] = {}
+messages_storage: Dict[str, List[Dict]] = {}
+shared_users_storage: Dict[str, List[Dict]] = {}
 
 
-# Request/Response models
-class GenerateItineraryRequest(BaseModel):
-    """Request model for generating itinerary from prompt"""
-    prompt: str
-    user_id: str
-    trip_id: str  # Required from frontend
-
-
-class FollowUpRequest(BaseModel):
-    """Request model for follow-up queries/modifications"""
-    prompt: str
-    user_id: Optional[str] = None
+# Pydantic models for chat
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    timestamp: str
 
 
 class ChatRequest(BaseModel):
-    """Request model for chat-style trip planning"""
-    prompt: str
-    user_id: str
-    trip_id: Optional[str] = None  # If provided, updates existing trip plan
-    selected_accommodation_id: Optional[str] = None  # If user selected an accommodation
-
-
-class ChatResponse(BaseModel):
-    """Response model for chat-style trip planning"""
-    trip_id: str
+    userId: str
+    tripId: str
     message: str
-    trip_plan: TripPlan
-    status: str  # "new", "updated", "in_progress"
+    systemPrompt: Optional[str] = None
+    conversationHistory: Optional[List[Dict]] = None
+    timestamp: Optional[str] = None
+    isInitialPlan: Optional[bool] = False
 
 
-@trip_router.post("/users/{user_id}/profile", response_model=UserProfile)
-async def create_or_update_profile(user_id: str, profile: UserProfile):
-    """
-    Create or update user profile
-    
-    Args:
-        user_id: User ID (must match profile.user_id)
-        profile: User profile data
-        
-    Returns:
-        Created/updated user profile
-    """
-    if orchestrator is None:
-        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
-    
-    if profile.user_id != user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="User ID in path must match user_id in profile"
-        )
-    
-    try:
-        orchestrator.register_user_profile(profile)
-        return profile
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving profile: {str(e)}")
+class MessageRequest(BaseModel):
+    userId: str
+    tripId: str
+    message: Dict[str, Any]
+    timestamp: str
 
 
-@trip_router.get("/users/{user_id}/profile", response_model=UserProfile)
-async def get_profile(user_id: str):
-    """
-    Get user profile by ID
-    
-    Args:
-        user_id: User ID
-        
-    Returns:
-        User profile
-    """
-    if orchestrator is None:
-        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
-    
-    profile = orchestrator.get_user_profile(user_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="User profile not found")
-    
-    return profile
-
->>>>>>> Stashed changes
+class InviteRequest(BaseModel):
+    userId: str
+    tripId: str
+    inviteEmail: str
 
 @trip_router.post("/chat", response_model=ChatResponse)
 async def chat_plan_trip(request: ChatRequest):
@@ -270,254 +217,143 @@ async def test_endpoint():
     return {"status": "ok", "message": "TripMind API is running"}
 
 
-@trip_router.post("/{user_id}/{trip_id}/follow-up")
-async def handle_follow_up(user_id: str, trip_id: str, request: FollowUpRequest):
+# Chat endpoints for trip-planner API
+chat_router = APIRouter()
+
+
+@chat_router.post("/trips/{tripId}/chat")
+async def chat_with_trip(tripId: str, request: ChatRequest):
     """
-    Handle follow-up queries or modifications for an existing itinerary
-    
-    Args:
-        user_id: User ID who owns the itinerary
-        trip_id: Trip ID (from frontend)
-        request: FollowUpRequest with prompt and optional user_id (modifier)
-        
-    Returns:
-        Either an answer (for queries) or updated itinerary (for modifications)
+    Chat with AI about a trip using Google Gemini
     """
-    if itinerary_service is None:
-        raise HTTPException(status_code=503, detail="Itinerary service not initialized")
-    
     try:
-        # Handle follow-up
-        # request.user_id is the modifying user (can be different from owner)
-        result = await itinerary_service.handle_follow_up(
-            user_id=user_id,
-            trip_id=trip_id,
-            prompt=request.prompt,
-            modifying_user_id=request.user_id,  # Who is making the modification
-            user_profile=None  # Will fetch from database
+        import google.generativeai as genai
+        
+        # Get Gemini API key
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="GEMINI_API_KEY or GOOGLE_API_KEY not configured. Get your key from: https://makersuite.google.com/app/apikey")
+        
+        # Configure Gemini
+        genai.configure(api_key=api_key)
+        
+        # Initialize the model
+        model = genai.GenerativeModel('gemini-pro')
+        
+        # Build the full prompt with system prompt and conversation history
+        full_prompt_parts = []
+        
+        # Add system prompt if provided
+        if request.systemPrompt:
+            full_prompt_parts.append(request.systemPrompt)
+        
+        # Add conversation history if provided
+        if request.conversationHistory and len(request.conversationHistory) > 0:
+            conversation_text = "\n\n".join([
+                f"{'User' if msg.get('role') == 'user' else 'Assistant'}: {msg.get('content', '')}"
+                for msg in request.conversationHistory
+                if msg.get('role') in ['user', 'assistant']
+            ])
+            full_prompt_parts.append(conversation_text)
+        
+        # Add the current user message
+        full_prompt_parts.append(f"User: {request.message}\n\nAssistant:")
+        
+        # Combine all parts
+        full_prompt = "\n\n".join(full_prompt_parts)
+        
+        # Call Gemini API
+        generation_config = {
+            "temperature": 0.7,
+            "max_output_tokens": 2000,
+        }
+        response = model.generate_content(
+            full_prompt,
+            generation_config=generation_config
         )
         
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        ai_response = response.text
+        
+        return {
+            "response": ai_response,
+            "message": ai_response,
+            "plan": ai_response if request.isInitialPlan else None
+        }
+        
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Google Generative AI library not installed. Run: pip install google-generativeai")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error handling follow-up: {str(e)}")
+        error_msg = str(e)
+        if "API_KEY" in error_msg or "api key" in error_msg.lower():
+            error_msg = "GEMINI_API_KEY not configured. Get your key from: https://makersuite.google.com/app/apikey"
+        raise HTTPException(status_code=500, detail=f"Error calling Gemini AI: {error_msg}")
 
 
-@trip_router.get("/chat/{user_id}/{trip_id}", response_model=TripPlan)
-async def get_chat_trip_plan(user_id: str, trip_id: str):
-    """
-    Get trip plan by trip_id for chat interface
+@chat_router.post("/trips/{tripId}/messages")
+async def save_message(tripId: str, request: MessageRequest):
+    """Save a message to the trip chat"""
+    if tripId not in messages_storage:
+        messages_storage[tripId] = []
     
-    Args:
-        user_id: User ID
-        trip_id: Trip ID
-        
-    Returns:
-        TripPlan with complete trip details
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute(
-            """
-            SELECT itinerary FROM itineraries 
-            WHERE trip_id = ?
-            """,
-            (trip_id,)
-        )
-        result = cursor.fetchone()
-        
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Trip plan not found for user_id={user_id}, trip_id={trip_id}"
-            )
-        
-        # Parse JSON and return TripPlan
-        plan_dict = json.loads(result['itinerary'])
-        return TripPlan(**plan_dict)
-    finally:
-        conn.close()
+    messages_storage[tripId].append(request.message)
+    return {"status": "saved", "message": "Message saved successfully"}
 
 
-@trip_router.get("/{user_id}/{trip_id}", response_model=TripPlan)
-async def get_itinerary(user_id: str, trip_id: str, version: Optional[int] = None):
-    """
-    Get itinerary by user_id and trip_id
-    
-    Args:
-        user_id: User ID
-        trip_id: Trip ID (from frontend)
-        version: Optional version number (if not provided, returns latest version)
-        
-    Returns:
-        TripPlan (the generated itinerary text)
-    """
-    if itinerary_service is None:
-        raise HTTPException(status_code=503, detail="Itinerary service not initialized")
-    
-    itinerary = itinerary_service.get_itinerary(user_id, trip_id, version)
-    if not itinerary:
-        raise HTTPException(status_code=404, detail=f"Itinerary not found for user_id={user_id}, trip_id={trip_id}")
-    
-    return itinerary
+@chat_router.get("/trips/{tripId}/messages")
+async def get_messages(tripId: str, userId: str = Query(...)):
+    """Get all messages for a trip"""
+    messages = messages_storage.get(tripId, [])
+    return {"messages": messages}
 
 
-@trip_router.get("/{user_id}/{trip_id}/versions")
-async def get_itinerary_versions(user_id: str, trip_id: str):
-    """
-    Get all versions of an itinerary
-    
-    Args:
-        user_id: User ID
-        trip_id: Trip ID (from frontend)
-        
-    Returns:
-        List of version summaries
-    """
-    if itinerary_service is None:
-        raise HTTPException(status_code=503, detail="Itinerary service not initialized")
-    
-    try:
-        versions = itinerary_service.get_itinerary_versions(user_id, trip_id)
-        return {"user_id": user_id, "trip_id": trip_id, "versions": versions}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching versions: {str(e)}")
+@chat_router.get("/trips/{tripId}")
+async def get_trip(tripId: str, userId: str = Query(...)):
+    """Get trip information"""
+    trip = trips_storage.get(tripId, {})
+    return trip if trip else {"id": tripId, "title": f"Trip {tripId}", "destination": "Unknown"}
 
 
-@trip_router.get("/users/{user_id}/itineraries")
-async def list_user_itineraries(user_id: str):
-    """
-    List all itineraries for a user
-    
-    Args:
-        user_id: User ID
-        
-    Returns:
-        List of itinerary summaries
-    """
-    if itinerary_service is None:
-        raise HTTPException(status_code=503, detail="Itinerary service not initialized")
-    
-    try:
-        itineraries = itinerary_service.list_itineraries(user_id)
-        return {"user_id": user_id, "itineraries": itineraries}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error listing itineraries: {str(e)}")
+@chat_router.get("/trips")
+async def list_trips(userId: str = Query(...)):
+    """List all trips for a user"""
+    user_trips = [trip for trip in trips_storage.values() if trip.get("userId") == userId]
+    return {"trips": user_trips}
 
 
-# Helper functions for chat endpoint
-def _save_trip_plan_to_db(user_id: str, trip_id: str, plan: TripPlan, is_update: bool):
-    """Save trip plan to database"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+@chat_router.post("/trips/{tripId}/invite")
+async def invite_user(tripId: str, request: InviteRequest):
+    """Invite a user to view a trip chat"""
+    if tripId not in shared_users_storage:
+        shared_users_storage[tripId] = []
     
-    try:
-        # Convert TripPlan to JSON
-        plan_json = json.dumps(plan.model_dump(), default=str)
-        
-        # Check if itinerary exists
-        cursor.execute(
-            """
-            SELECT itinerary FROM itineraries 
-            WHERE user_id = ? AND trip_id = ?
-            """,
-            (user_id, trip_id)
-        )
-        exists = cursor.fetchone()
-        
-        if exists:
-            # Update existing itinerary
-            cursor.execute(
-                """
-                UPDATE itineraries 
-                SET itinerary = ? 
-                WHERE user_id = ? AND trip_id = ?
-                """,
-                (plan_json, user_id, trip_id)
-            )
-            
-            # Get current version number
-            cursor.execute(
-                """
-                SELECT MAX(version_number) as max_version 
-                FROM itinerary_versions 
-                WHERE user_id = ? AND trip_id = ?
-                """,
-                (user_id, trip_id)
-            )
-            result = cursor.fetchone()
-            if result and result['max_version'] is not None:
-                next_version = result['max_version'] + 1
-            else:
-                # No versions yet, start with version 2 (version 1 should exist from initial creation)
-                next_version = 2
-            
-            # Insert new version
-            cursor.execute(
-                """
-                INSERT INTO itinerary_versions (user_id, trip_id, version_number, modified_by, itinerary, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, trip_id, next_version, user_id, plan_json, datetime.now().isoformat())
-            )
-        else:
-            # Insert new itinerary
-            cursor.execute(
-                """
-                INSERT INTO itineraries (user_id, trip_id, itinerary)
-                VALUES (?, ?, ?)
-                """,
-                (user_id, trip_id, plan_json)
-            )
-            
-            # Insert version 1
-            cursor.execute(
-                """
-                INSERT INTO itinerary_versions (user_id, trip_id, version_number, modified_by, itinerary, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, trip_id, 1, user_id, plan_json, datetime.now().isoformat())
-            )
-        
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"❌ Database error in _save_trip_plan_to_db: {error_trace}")
-        raise RuntimeError(f"Database error saving trip plan: {str(e)}") from e
-    finally:
-        conn.close()
+    shared_users_storage[tripId].append({
+        "email": request.inviteEmail,
+        "status": "invited",
+        "invitedBy": request.userId
+    })
+    
+    return {"status": "invited", "message": f"User {request.inviteEmail} has been invited"}
 
 
-def _generate_chat_message(plan: TripPlan, is_update: bool) -> str:
-    """Generate a chat-friendly message summarizing the trip plan"""
-    if is_update:
-        message = "✅ Trip plan updated! "
-    else:
-        message = "🎉 Your trip plan is ready! "
-    
-    # Add summary
-    if plan.selected_accommodation:
-        message += f"\n\n🏨 **Accommodation:** {plan.selected_accommodation.title}"
-    
-    if plan.restaurants:
-        message += f"\n🍽️ **Restaurants:** {len(plan.restaurants)} recommendations"
-    
-    if plan.transportation:
-        message += f"\n✈️ **Transportation:** {len(plan.transportation)} options"
-    
-    if plan.experiences:
-        message += f"\n🎯 **Experiences:** {len(plan.experiences)} activities"
-    
-    if plan.budget:
-        message += f"\n💰 **Total Budget:** ${plan.budget.total:.2f}"
-    
-    if plan.itinerary:
-        message += f"\n📅 **Itinerary:** {len(plan.itinerary)} days planned"
-    
-    return message
->>>>>>> Stashed changes
+@chat_router.get("/trips/{tripId}/shared-users")
+async def get_shared_users(tripId: str, userId: str = Query(...)):
+    """Get list of users who can view this trip"""
+    shared_users = shared_users_storage.get(tripId, [])
+    return {"sharedUsers": shared_users}
+
+
+@chat_router.post("")
+async def create_trip(request: Dict[str, Any] = Body(...)):
+    """Create a new trip (from SearchBar)"""
+    trip_id = request.get("tripId")
+    if trip_id:
+        trips_storage[trip_id] = {
+            "id": trip_id,
+            "userId": request.get("userId", "Kartik7"),
+            "prompt": request.get("prompt", ""),
+            "timestamp": request.get("timestamp", ""),
+            "title": request.get("title", f"Trip {trip_id}"),
+            "destination": request.get("destination", "Unknown")
+        }
+        return {"status": "created", "tripId": trip_id, "message": "Trip created successfully"}
+    return {"status": "error", "message": "tripId is required"}

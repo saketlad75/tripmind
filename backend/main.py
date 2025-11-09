@@ -81,6 +81,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(routes.trip_router, prefix="/api/trips", tags=["trips"])
+# Include chat router for trip-planner API (matches frontend expectations)
+app.include_router(routes.chat_router, prefix="/api/trip-planner", tags=["chat"])
 
 
 @app.get("/")
