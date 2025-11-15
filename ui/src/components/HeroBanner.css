@@ -1,0 +1,288 @@
+.hero-banner {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: transparent;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  z-index: 1;
+}
+
+.trending-title {
+  font-size: 36px;
+  font-weight: bold;
+  color: #6E6E6E;
+  text-align: center;
+  margin-bottom: 40px;
+  text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.banner-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.banner-title {
+  font-size: 42px;
+  font-weight: bold;
+  color: #6E6E6E;
+  text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.3);
+  margin-bottom: 12px;
+}
+
+.banner-subtitle {
+  font-size: 18px;
+  color: #6E6E6E;
+  font-weight: 300;
+}
+
+.destinations-grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  position: relative;
+  overflow: hidden;
+}
+
+.destination-row-top {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px;
+  position: relative;
+  overflow: hidden;
+  animation: slideInFromRight 0.8s ease-in-out;
+  will-change: transform;
+}
+
+.search-bar-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.destination-row-bottom {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px;
+  position: relative;
+  overflow: hidden;
+  animation: slideInFromLeft 0.8s ease-in-out;
+  will-change: transform;
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Ensure cards don't overflow during animation */
+.destination-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  aspect-ratio: 4 / 3;
+  cursor: pointer;
+  contain: layout style paint;
+  max-width: 100%;
+  transform: translateZ(0);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.carousel-item {
+  animation: carouselSlideIn 0.8s ease-out;
+}
+
+@keyframes carouselSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(50px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.destination-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+.card-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.destination-card:hover .card-image {
+  transform: scale(1.1);
+}
+
+.card-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.5) 60%,
+    transparent 100%
+  );
+  padding: 20px 15px 15px;
+  color: white;
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+}
+
+.destination-card:hover .card-overlay {
+  transform: translateY(-5px);
+}
+
+.card-name {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 4px;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+  line-height: 1.2;
+}
+
+.card-description {
+  font-size: 12px;
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .destination-row-top,
+  .destination-row-bottom {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .destination-row-top,
+  .destination-row-bottom {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+  }
+  
+  .trending-title {
+    font-size: 32px;
+    margin-bottom: 35px;
+  }
+  
+  .banner-title {
+    font-size: 32px;
+  }
+  
+  .banner-subtitle {
+    font-size: 16px;
+  }
+  
+  .card-name {
+    font-size: 18px;
+  }
+  
+  .card-description {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 768px) {
+  .destination-row-top,
+  .destination-row-bottom {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .destinations-grid-container {
+    gap: 15px;
+  }
+  
+  .trending-title {
+    font-size: 28px;
+    margin-bottom: 30px;
+  }
+  
+  .banner-title {
+    font-size: 28px;
+  }
+  
+  .banner-subtitle {
+    font-size: 14px;
+  }
+  
+  .card-name {
+    font-size: 16px;
+  }
+  
+  .card-description {
+    font-size: 12px;
+  }
+  
+  .card-overlay {
+    padding: 15px 12px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .destination-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .trending-title {
+    font-size: 24px;
+    margin-bottom: 25px;
+  }
+}

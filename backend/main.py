@@ -12,26 +12,55 @@ from dotenv import load_dotenv
 
 from api import routes
 from services.orchestrator import TripOrchestrator
+from services.itinerary_service import ItineraryService
+from database.db import init_db
 
 load_dotenv()
 
 # Global orchestrator instance
 orchestrator = None
+itinerary_service = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
-    global orchestrator
+    global orchestrator, itinerary_service
+    
+    # Initialize database
+    init_db()
+    
     # Startup
-    orchestrator = TripOrchestrator()
-    await orchestrator.initialize()
-    # Set orchestrator in routes module
+    # Initialize orchestrator only if API keys are available
+    # (needed for legacy /plan endpoint)
+    import os
+    if os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"):
+        try:
+            orchestrator = TripOrchestrator()
+            await orchestrator.initialize()
+        except Exception as e:
+            print(f"⚠️  Warning: Could not initialize orchestrator: {e}")
+            print("   Legacy /plan endpoint will not be available")
+            orchestrator = None
+    else:
+        print("⚠️  Warning: No LLM API key found (OPENAI_API_KEY or ANTHROPIC_API_KEY)")
+        print("   Orchestrator not initialized. Legacy /plan endpoint will not be available.")
+        print("   New /generate endpoint uses ItineraryService (doesn't need orchestrator)")
+        orchestrator = None
+    
+    # Initialize itinerary service (uses its own agents, doesn't need orchestrator)
+    itinerary_service = ItineraryService()
+    await itinerary_service.initialize()
+    
+    # Set in routes module
     routes.orchestrator = orchestrator
+    routes.itinerary_service = itinerary_service
     yield
     # Shutdown
-    await orchestrator.cleanup()
+    if orchestrator:
+        await orchestrator.cleanup()
     routes.orchestrator = None
+    routes.itinerary_service = None
 
 
 app = FastAPI(
@@ -42,9 +71,18 @@ app = FastAPI(
 )
 
 # CORS configuration
+import os
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+if cors_origins == ["*"]:
+    # Development: allow all origins
+    cors_origins = ["*"]
+else:
+    # Production: specific origins
+    cors_origins = [origin.strip() for origin in cors_origins]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +90,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(routes.trip_router, prefix="/api/trips", tags=["trips"])
+# Include chat router for trip-planner API (matches frontend expectations)
+app.include_router(routes.chat_router, prefix="/api/trip-planner", tags=["chat"])
 
 
 @app.get("/")

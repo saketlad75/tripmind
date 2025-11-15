@@ -50,6 +50,7 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+backend/database/tripmind.db
 
 # Logs
 *.log
@@ -70,3 +71,12 @@ dmypy.json
 tripmind.db
 *.pdf
 
+ui/node_modules/
+ui/node_modules/.cache/
+backend/venv/
+backend/database/*.db
+backend/database/*.db-journal
+*.pyc
+__pycache__/
+.env
+.DS_Store
