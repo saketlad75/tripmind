@@ -16,23 +16,23 @@ TripMind is an AI-powered trip planning system that uses a multi-agent architect
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 with TypeScript
+- **Frontend**: React (Create React App) in `ui/`
 - **Backend**: Python FastAPI
 - **Orchestration**: LangGraph
 - **LLM**: OpenAI GPT-4o-mini / Claude Sonnet
-- **Embeddings**: OpenAI / AWS Bedrock Titan
-- **APIs**: Airbnb, Skyscanner, TripAdvisor/Viator
+- **APIs**: Google Gemini (search), OpenAI/Anthropic (LLM)
 
 ## Project Structure
 
 ```
-├── frontend/          # Next.js application
+├── ui/                # React (CRA) frontend application
 ├── backend/           # Python FastAPI backend
-│   ├── agents/        # Multi-agent system
-│   ├── api/           # API integrations
-│   └── services/      # Core services
-├── shared/            # Shared types and utilities
-└── docs/              # Documentation
+│   ├── agents/       # Multi-agent system
+│   ├── api/          # API routes
+│   ├── services/     # Core services
+│   └── database/     # SQLite persistence
+├── shared/           # Shared types (Pydantic models)
+└── backend/*.md      # Documentation (API, setup, testing)
 ```
 
 ## Getting Started
@@ -42,10 +42,8 @@ TripMind is an AI-powered trip planning system that uses a multi-agent architect
 - Node.js 18+
 - Python 3.11+
 - API keys for:
-  - OpenAI (or Anthropic)
-  - Airbnb API
-  - Skyscanner API
-  - TripAdvisor/Viator API
+  - OpenAI or Anthropic (for LLM)
+  - Google/Gemini (for search; see `backend/.env.example`)
 
 ### Installation
 
@@ -59,15 +57,15 @@ pip install -r requirements.txt
 
 2. **Frontend Setup**
 ```bash
-cd frontend
+cd ui
 npm install
 ```
 
 3. **Environment Variables**
 ```bash
 cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env.local
-# Edit with your API keys
+# Edit with your API keys (OPENAI_API_KEY or ANTHROPIC_API_KEY, GOOGLE_API_KEY)
+# Optional: create ui/.env with REACT_APP_API_URL=http://localhost:8000
 ```
 
 ### Running the Application
@@ -80,8 +78,8 @@ uvicorn main:app --reload
 
 2. **Start Frontend**
 ```bash
-cd frontend
-npm run dev
+cd ui
+npm start
 ```
 
 Visit `http://localhost:3000` to use TripMind.

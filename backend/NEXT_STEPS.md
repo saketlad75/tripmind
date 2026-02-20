@@ -83,10 +83,10 @@ GET /api/trips/chat/{user_id}/{trip_id}
 
 ### 4. UI Implementation Checklist
 
-- [ ] **User Registration Flow**
-  - [ ] Create user profile form
-  - [ ] Send profile to `POST /api/trips/users/{user_id}/profile`
-  - [ ] Store `user_id` in session/localStorage
+- [x] **User Registration Flow**
+  - [x] Create user profile form (`/register` page)
+  - [x] Send profile to `POST /api/trips/users/{user_id}/profile`
+  - [x] Store `user_id` in session/localStorage (UserContext)
 
 - [ ] **Chat Interface**
   - [ ] Text input for user prompts

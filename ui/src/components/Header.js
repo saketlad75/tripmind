@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage, languages } from '../contexts/LanguageContext';
+import { useUser } from '../contexts/UserContext';
 import './Header.css';
 
 const Header = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  const { user, logout } = useUser();
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
   const languageDropdownRef = useRef(null);
 
@@ -165,8 +167,15 @@ const Header = () => {
             )}
           </div>
 
-          <button className="icon-button user-menu" title="User Menu">
-            <span className="user-greeting">{t('hiKartik')}</span>
+          <button
+            className="icon-button user-menu"
+            title={user ? 'Account' : 'Sign in'}
+            onClick={() => user ? null : navigate('/register')}
+            style={user ? {} : { cursor: 'pointer' }}
+          >
+            <span className="user-greeting">
+              {user ? t('hiName').replace('{name}', user.name || '') : t('signIn')}
+            </span>
             <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" className="user-avatar">
               <circle cx="15" cy="15" r="14" fill="#717171" stroke="white" strokeWidth="2"/>
               <circle cx="15" cy="12" r="3.5" fill="white"/>

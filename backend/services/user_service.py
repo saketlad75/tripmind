@@ -1,8 +1,9 @@
 """
-User Service - Fetches user data from database and converts to UserProfile
+User Service - Fetches and saves user data from database, converts to UserProfile
 """
 
 from typing import Optional
+from datetime import datetime
 import json
 from shared.types import UserProfile
 from database.db import get_db_connection
@@ -30,7 +31,7 @@ class UserService:
                 """
                 SELECT u.id, u.user_id, u.name, u.date_of_birth, u.email, 
                        u.phone_number, u.country_of_residence, u.home_city,
-                       u.created_at, u.updated_at
+                       u.created_at, u.updated_at, u.budget
                 FROM users u
                 WHERE u.user_id = ?
                 """,
@@ -46,7 +47,7 @@ class UserService:
                         """
                         SELECT u.id, u.user_id, u.name, u.date_of_birth, u.email, 
                                u.phone_number, u.country_of_residence, u.home_city,
-                               u.created_at, u.updated_at
+                               u.created_at, u.updated_at, u.budget
                         FROM users u
                         WHERE u.id = ?
                         """,
@@ -135,19 +136,19 @@ class UserService:
                 else:
                     dietary_preferences = [diet_pref.strip().lower()]
         
-        # Note: budget and other fields removed from user_profiles table
-        # They will come from the prompt or be inferred
-        
         # Use external user_id if available, otherwise use internal id
         external_user_id = user_data.get('user_id') or str(user_data['id'])
+        budget = user_data.get('budget')
+        if budget is not None and hasattr(budget, '__float__'):
+            budget = float(budget)
         
         return UserProfile(
-            user_id=external_user_id,  # Use external user_id (e.g., "Kartik7")
+            user_id=external_user_id,
             name=user_data['name'],
             email=user_data['email'],
             phone_number=user_data.get('phone_number'),
             date_of_birth=user_data.get('date_of_birth'),
-            budget=None,  # Budget not stored in database, will be set from prompt or user input
+            budget=budget,
             dietary_preferences=dietary_preferences,
             disability_needs=disability_needs
         )
@@ -183,4 +184,101 @@ class UserService:
                 pass
         
         return context
+
+    def save_user_profile(self, profile: UserProfile) -> None:
+        """
+        Create or update user profile in database (users, demographics, travel_preferences).
+        Registers the profile with the orchestrator if it is set in routes.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        try:
+            cursor.execute(
+                "SELECT id, user_id FROM users WHERE user_id = ?",
+                (profile.user_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                internal_id = row["id"]
+                cursor.execute(
+                    """
+                    UPDATE users SET name = ?, email = ?, phone_number = ?, date_of_birth = ?,
+                                   budget = ?, updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (
+                        profile.name,
+                        profile.email,
+                        profile.phone_number,
+                        str(profile.date_of_birth) if profile.date_of_birth else None,
+                        profile.budget,
+                        now,
+                        profile.user_id,
+                    ),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO users (user_id, name, email, phone_number, date_of_birth,
+                                     country_of_residence, home_city, created_at, updated_at, budget)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        profile.user_id,
+                        profile.name,
+                        profile.email,
+                        profile.phone_number,
+                        str(profile.date_of_birth) if profile.date_of_birth else None,
+                        None,
+                        None,
+                        now,
+                        now,
+                        profile.budget,
+                    ),
+                )
+                internal_id = cursor.lastrowid
+
+            disability_needs_json = json.dumps(profile.disability_needs or [])
+            diet_preference = ", ".join(profile.dietary_preferences or []) if profile.dietary_preferences else None
+            language_preferences_json = json.dumps(["english"])
+
+            cursor.execute(
+                "SELECT id FROM demographics WHERE user_id = ?",
+                (internal_id,)
+            )
+            if cursor.fetchone():
+                cursor.execute(
+                    "UPDATE demographics SET disability_needs = ? WHERE user_id = ?",
+                    (disability_needs_json, internal_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO demographics (user_id, disability_needs)
+                    VALUES (?, ?)
+                    """,
+                    (internal_id, disability_needs_json),
+                )
+
+            cursor.execute(
+                "SELECT id FROM travel_preferences WHERE user_id = ?",
+                (internal_id,)
+            )
+            if cursor.fetchone():
+                cursor.execute(
+                    "UPDATE travel_preferences SET diet_preference = ? WHERE user_id = ?",
+                    (diet_preference, internal_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO travel_preferences (user_id, diet_preference, language_preferences)
+                    VALUES (?, ?, ?)
+                    """,
+                    (internal_id, diet_preference, language_preferences_json),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 

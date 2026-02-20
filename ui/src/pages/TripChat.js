@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTripsFromLocalStorage } from '../utils/tripUtils';
+import { useUser } from '../contexts/UserContext';
 import './TripChat.css';
 
 const TripChat = () => {
   const { tripId } = useParams();
   const navigate = useNavigate();
+  const { user_id } = useUser();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [tripInfo, setTripInfo] = useState(null);
@@ -40,9 +42,14 @@ const TripChat = () => {
           });
         }
         
+        // Backend calls require user_id
+        if (!user_id) {
+          return;
+        }
+        
         // Try to fetch from backend API for trip info
         try {
-          const tripResponse = await fetch(`${API_ENDPOINT}/trips/${tripId}?userId=Kartik7`);
+          const tripResponse = await fetch(`${API_ENDPOINT}/trips/${tripId}?userId=${encodeURIComponent(user_id)}`);
           if (tripResponse.ok && isMounted) {
             const tripData = await tripResponse.json();
             setTripInfo(prev => prev || tripData);
@@ -54,7 +61,7 @@ const TripChat = () => {
         // Fetch existing messages FIRST (before checking for stored prompts)
         let hasExistingMessages = false;
         try {
-          const messagesResponse = await fetch(`${CHAT_API_ENDPOINT}/trips/${tripId}/messages?userId=Kartik7`);
+          const messagesResponse = await fetch(`${CHAT_API_ENDPOINT}/trips/${tripId}/messages?userId=${encodeURIComponent(user_id)}`);
           if (messagesResponse.ok) {
             const messagesData = await messagesResponse.json();
             if (messagesData.messages && messagesData.messages.length > 0 && isMounted) {
@@ -96,8 +103,8 @@ const TripChat = () => {
         const promptKey = `trip_prompt_${tripId}`;
         const storedPrompt = localStorage.getItem(promptKey);
         
-        // If we have a prompt and no messages, automatically send it
-        if (storedPrompt && !hasExistingMessages && isMounted) {
+        // If we have a prompt and no messages and user is logged in, automatically send it
+        if (storedPrompt && !hasExistingMessages && isMounted && user_id) {
           // Remove the stored prompt
           localStorage.removeItem(promptKey);
           
@@ -121,7 +128,7 @@ const TripChat = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   prompt: userPrompt,
-                  user_id: 'Kartik7',
+                  user_id: user_id,
                   trip_id: tripId || undefined,
                 }),
               });
@@ -240,7 +247,7 @@ const TripChat = () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId]);
+  }, [tripId, user_id]);
 
 
   // Save message to backend
@@ -252,7 +259,7 @@ const TripChat = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: 'Kartik7',
+          userId: user_id,
           tripId: tripId,
           message: message,
           timestamp: message.timestamp
@@ -298,6 +305,10 @@ const TripChat = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
+    if (!user_id) {
+      navigate('/register');
+      return;
+    }
     if (!inputMessage.trim() || isLoading) return;
 
     const userPrompt = inputMessage.trim();
@@ -322,7 +333,7 @@ const TripChat = () => {
         },
         body: JSON.stringify({
           prompt: userPrompt,
-          user_id: 'Kartik7', // TODO: Get from auth context
+          user_id: user_id,
           trip_id: currentTripId || undefined, // Use current trip_id if exists
         }),
       });
@@ -403,7 +414,7 @@ const TripChat = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: 'Kartik7',
+          userId: user_id,
           tripId: tripId,
           inviteEmail: inviteEmail.trim()
         })
@@ -428,7 +439,7 @@ const TripChat = () => {
   useEffect(() => {
     const fetchSharedUsers = async () => {
       try {
-        const response = await fetch(`${CHAT_API_ENDPOINT}/trips/${tripId}/shared-users?userId=Kartik7`);
+        const response = await fetch(`${CHAT_API_ENDPOINT}/trips/${tripId}/shared-users?userId=${encodeURIComponent(user_id || '')}`);
       if (response.ok) {
         const responseData = await response.json();
         setSharedUsers(responseData.sharedUsers || []);

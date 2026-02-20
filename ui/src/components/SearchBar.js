@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useUser } from '../contexts/UserContext';
 import { createTripFromPrompt, saveTripToLocalStorage, extractLocation } from '../utils/tripUtils';
 import './SearchBar.css';
 
 const SearchBar = () => {
   const { t } = useLanguage();
+  const { user_id } = useUser();
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -38,6 +40,10 @@ const SearchBar = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user_id) {
+      navigate('/register');
+      return;
+    }
     if (prompt.trim() && !isGenerating) {
       setIsGenerating(true);
       setError(null);
@@ -46,13 +52,13 @@ const SearchBar = () => {
       const tripId = generateTripId(prompt.trim());
       const promptData = {
         prompt: prompt.trim(),
-        userId: 'Kartik7',
+        userId: user_id,
         tripId: tripId,
         timestamp: new Date().toISOString()
       };
       
       // Create trip object from the prompt (always create, even if API fails)
-      const newTrip = createTripFromPrompt(prompt.trim(), tripId, 'Kartik7');
+      const newTrip = createTripFromPrompt(prompt.trim(), tripId, user_id);
       
       // Create AbortController for timeout
       const controller = new AbortController();

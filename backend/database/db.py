@@ -134,6 +134,12 @@ def init_db():
         """
     )
 
+    # Migration: add budget column to users if missing (for profile API)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN budget REAL;")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     # Create indexes for better query performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itineraries_user_id ON itineraries(user_id);")

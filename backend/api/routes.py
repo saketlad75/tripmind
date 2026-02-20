@@ -5,8 +5,9 @@ API routes for TripMind
 from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from shared.types import TripRequest, TripPlan
+from shared.types import TripRequest, TripPlan, UserProfile
 from services.orchestrator import TripOrchestrator
+from services.user_service import UserService
 from database.db import get_db_connection
 from datetime import datetime
 import os
@@ -18,6 +19,7 @@ trip_router = APIRouter()
 
 # Global orchestrator instance (will be set by main.py)
 orchestrator: TripOrchestrator = None
+user_service = UserService()
 
 # In-memory storage for trips (legacy, will migrate to database)
 trips_storage: Dict[str, Dict] = {}
@@ -629,6 +631,31 @@ async def plan_trip(request: TripRequest):
 async def test_endpoint():
     """Test endpoint"""
     return {"status": "ok", "message": "TripMind API is running"}
+
+
+# User profile API (create/update and get)
+@trip_router.post("/users/{user_id}/profile", response_model=UserProfile)
+async def create_or_update_user_profile(user_id: str, profile: UserProfile):
+    """
+    Create or update user profile. Required before planning trips.
+    Body should include user_id, name, email, and optionally phone_number,
+    date_of_birth, budget, dietary_preferences, disability_needs.
+    """
+    if profile.user_id != user_id:
+        profile = profile.model_copy(update={"user_id": user_id})
+    user_service.save_user_profile(profile)
+    if orchestrator:
+        orchestrator.register_user_profile(profile)
+    return profile
+
+
+@trip_router.get("/users/{user_id}/profile", response_model=UserProfile)
+async def get_user_profile(user_id: str):
+    """Get user profile by user_id. Returns 404 if not found."""
+    profile = user_service.to_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"User profile not found for user_id: {user_id}")
+    return profile
 
 
 # Chat endpoints for trip-planner API

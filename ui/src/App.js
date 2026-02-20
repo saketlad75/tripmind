@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { UserProvider } from './contexts/UserContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HeroBanner from './components/HeroBanner';
@@ -12,6 +13,7 @@ import Testimonials from './components/Testimonials';
 import CTASection from './components/CTASection';
 import MyTripsListing from './pages/MyTripsListing';
 import TripChat from './pages/TripChat';
+import Register from './pages/Register';
 import './App.css';
 
 function HomePage() {
@@ -35,19 +37,22 @@ function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <Router>
-          <div className="App">
-            <Header />
-            <main className="main-content">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/trips" element={<MyTripsListing />} />
-                <Route path="/trips/:tripId/chat" element={<TripChat />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </Router>
+        <UserProvider>
+          <Router>
+            <div className="App">
+              <Header />
+              <main className="main-content">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/trips" element={<MyTripsListing />} />
+                  <Route path="/trips/:tripId/chat" element={<TripChat />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+          </Router>
+        </UserProvider>
       </LanguageProvider>
     </ThemeProvider>
   );

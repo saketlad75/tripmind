@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTripsFromLocalStorage, deleteTripFromLocalStorage } from '../utils/tripUtils';
+import { useUser } from '../contexts/UserContext';
 import './MyTripsListing.css';
 
 const MyTripsListing = () => {
@@ -8,6 +9,7 @@ const MyTripsListing = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  const { user_id } = useUser();
 
   // Fetch trips from backend API and localStorage
   useEffect(() => {
@@ -19,7 +21,7 @@ const MyTripsListing = () => {
         // Try to fetch from backend API
         try {
           const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trip-planner';
-          const response = await fetch(`${API_ENDPOINT}/trips?userId=Kartik7`, {
+          const response = await fetch(`${API_ENDPOINT}/trips?userId=${encodeURIComponent(user_id || '')}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

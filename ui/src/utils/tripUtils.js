@@ -121,7 +121,7 @@ export const deleteTripFromLocalStorage = (tripId) => {
 };
 
 // Create a trip object from prompt and tripId
-export const createTripFromPrompt = (prompt, tripId, userId = 'Kartik7') => {
+export const createTripFromPrompt = (prompt, tripId, userId) => {
   const location = extractLocation(prompt);
   const title = `${location} Trip`;
   

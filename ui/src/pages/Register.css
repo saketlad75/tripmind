@@ -1,0 +1,138 @@
+.register-page {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.register-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.register-card h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #222;
+}
+
+.register-subtitle {
+  margin: 0 0 24px;
+  font-size: 14px;
+  color: #6E6E6E;
+}
+
+.register-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.register-form .required {
+  color: #e00;
+}
+
+.register-form input[type="text"],
+.register-form input[type="email"],
+.register-form input[type="tel"],
+.register-form input[type="date"],
+.register-form input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.register-form input:focus {
+  outline: none;
+  border-color: #FF385C;
+  box-shadow: 0 0 0 2px rgba(255, 56, 92, 0.2);
+}
+
+.register-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.register-chips .chip {
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.register-chips .chip:hover {
+  border-color: #FF385C;
+  color: #FF385C;
+}
+
+.register-chips .chip.active {
+  background: #FF385C;
+  border-color: #FF385C;
+  color: #fff;
+}
+
+.register-error {
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  background: #fee;
+  color: #c00;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.register-submit {
+  width: 100%;
+  padding: 12px 24px;
+  margin-top: 8px;
+  background: #FF385C;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.register-submit:hover:not(:disabled) {
+  background: #e62e50;
+}
+
+.register-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.register-login {
+  margin: 20px 0 0;
+  font-size: 14px;
+  color: #6E6E6E;
+  text-align: center;
+}
+
+.register-login a {
+  color: #FF385C;
+  text-decoration: none;
+}
+
+.register-login a:hover {
+  text-decoration: underline;
+}
