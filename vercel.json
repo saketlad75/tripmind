@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd ui && npm ci && npm run build",
+  "outputDirectory": "ui/build",
+  "framework": null,
+  "installCommand": "cd ui && npm ci",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

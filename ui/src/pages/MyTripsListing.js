@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTripsFromLocalStorage, deleteTripFromLocalStorage } from '../utils/tripUtils';
 import { useUser } from '../contexts/UserContext';
+import { API_TRIP_PLANNER } from '../config';
 import './MyTripsListing.css';
 
 const MyTripsListing = () => {
@@ -20,8 +21,7 @@ const MyTripsListing = () => {
         
         // Try to fetch from backend API
         try {
-          const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trip-planner';
-          const response = await fetch(`${API_ENDPOINT}/trips?userId=${encodeURIComponent(user_id || '')}`, {
+          const response = await fetch(`${API_TRIP_PLANNER}/trips?userId=${encodeURIComponent(user_id || '')}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -149,8 +149,7 @@ const MyTripsListing = () => {
       
       // Try to delete from backend (optional, non-blocking)
       try {
-        const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trip-planner';
-        await fetch(`${API_ENDPOINT}/trips/${tripId}`, {
+        await fetch(`${API_TRIP_PLANNER}/trips/${tripId}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useUser } from '../contexts/UserContext';
 import { createTripFromPrompt, saveTripToLocalStorage, extractLocation } from '../utils/tripUtils';
+import { API_TRIPS } from '../config';
 import './SearchBar.css';
 
 const SearchBar = () => {
@@ -17,8 +18,7 @@ const SearchBar = () => {
   const textareaRef = useRef(null);
   const wrapperRef = useRef(null);
 
-  // API endpoint - update this with your backend URL
-  const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trips';
+  const API_ENDPOINT = API_TRIPS;
 
   // Generate a unique tripId with clean URL format
   const generateTripId = (promptText) => {

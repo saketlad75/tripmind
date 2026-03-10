@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTripsFromLocalStorage } from '../utils/tripUtils';
 import { useUser } from '../contexts/UserContext';
+import { API_TRIPS, API_TRIP_PLANNER } from '../config';
 import './TripChat.css';
 
 const TripChat = () => {
@@ -17,8 +18,8 @@ const TripChat = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const API_ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/trips';
-  const CHAT_API_ENDPOINT = process.env.REACT_APP_CHAT_API_URL || 'http://localhost:8000/api/trip-planner';
+  const API_ENDPOINT = API_TRIPS;
+  const CHAT_API_ENDPOINT = process.env.REACT_APP_CHAT_API_URL || API_TRIP_PLANNER;
   const [isLoading, setIsLoading] = useState(false);
   const [currentTripId, setCurrentTripId] = useState(tripId);
 

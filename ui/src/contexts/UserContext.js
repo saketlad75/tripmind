@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+import { API_ORIGIN } from '../config';
+
 const STORAGE_KEY = 'tripmind_user';
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const PROFILE_ENDPOINT = `${API_BASE}/api/trips/users`;
+const PROFILE_ENDPOINT = `${API_ORIGIN}/api/trips/users`;
 
 const UserContext = createContext(null);
 
